@@ -95,7 +95,6 @@ class SmartGallery_Action extends Widget implements ActionInterface
             try {
                 $stmt = $this->pdo->query("SELECT value FROM {$this->prefix}options WHERE name = 'plugin:SmartGallery' LIMIT 1");
                 $row = $stmt->fetch(PDO::FETCH_ASSOC);
-                
                 if ($row && isset($row['value']) && !empty($row['value'])) {
                     $savedConfig = $this->safeUnserialize($row['value']);
                 }
@@ -109,7 +108,6 @@ class SmartGallery_Action extends Widget implements ActionInterface
                     ->from('table.options')
                     ->where('name = ?', 'plugin:SmartGallery')
                 );
-                
                 if ($row && isset($row['value'])) {
                     $savedConfig = $this->safeUnserialize($row['value']);
                 }
@@ -123,7 +121,6 @@ class SmartGallery_Action extends Widget implements ActionInterface
                 }
             }
         }
-        
         return $defaultConfig;
     }
 
@@ -175,7 +172,6 @@ class SmartGallery_Action extends Widget implements ActionInterface
         if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
 
         $config = $this->getRealConfig();
-        
         $useWebp = (isset($config['webp']) && $config['webp'] == '1');
         $imgQuality = isset($config['imgQuality']) ? intval($config['imgQuality']) : 80; 
         
@@ -225,7 +221,6 @@ class SmartGallery_Action extends Widget implements ActionInterface
                         if ($im) {
                             $filename = "q{$imgQuality}_{$timeStamp}.webp";
                             $filepath = $uploadDir . $filename;
-                            
                             @imagewebp($im, $filepath, $imgQuality);
                             @imagedestroy($im);
                             
@@ -283,9 +278,19 @@ class SmartGallery_Action extends Widget implements ActionInterface
     public function checkPassword()
     {
         if (session_status() == PHP_SESSION_NONE) session_start();
-        $albumId = $this->request->get('album_id');
-        $password = $this->request.get('password');
-        $album = $this->db->fetchRow($this->db->select('password').from($this->prefix . 'smart_gallery_albums').where('id = ?', $albumId));
+        
+        // 兼容性修复：直接从输入流获取JSON数据
+        $json = file_get_contents('php://input');
+        $data = json_decode($json, true);
+        
+        // 兼容两种方式：JSON体 或 GET参数
+        $albumId = isset($data['album_id']) ? $data['album_id'] : $this->request->get('album_id');
+        $password = isset($data['password']) ? $data['password'] : $this->request->get('password');
+
+        $album = $this->db->fetchRow($this->db->select('password')->from($this->prefix . 'smart_gallery_albums')->where('id = ?', $albumId));
+        
+        header('Content-Type: application/json'); // 确保返回JSON头
+        
         if ($album && $album['password'] === $password) {
             $_SESSION['sg_unlocked_'.$albumId] = true;
             echo json_encode(['status' => 'success']);
