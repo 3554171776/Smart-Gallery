@@ -11,7 +11,6 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
 
 ?>
 <style>
-    /* 全局卡片样式 */
     .sg-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; margin-top: 20px; }
     .sg-card { background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.05); transition: all 0.3s; border: 1px solid #eaeaea; }
     .sg-card:hover { transform: translateY(-3px); box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
@@ -26,24 +25,40 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
     .sg-card-actions button.primary { color: #467B96; font-weight: bold; }
     .sg-card-actions button.warn { color: #d9534f; }
 
-    /* 修复：防止按钮溢出 */
     .sg-create-box { background: #fff; padding: 20px; border-radius: 8px; margin-bottom: 20px; display: flex; gap: 10px; align-items: center; box-shadow: 0 1px 5px rgba(0,0,0,0.05); flex-wrap: wrap; }
     .sg-create-box input { padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; flex: 1; min-width: 200px; }
-    .sg-create-box .btn { flex-shrink: 0; white-space: nowrap; } /* 强制不换行不压缩 */
+    .sg-create-box .btn { flex-shrink: 0; white-space: nowrap; }
 
-    /* 弹窗基础 */
     .sg-modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 10000; align-items: center; justify-content: center; }
     .sg-modal-content { background: #fff; border-radius: 8px; width: 90%; max-width: 1100px; max-height: 85vh; overflow-y: auto; }
     .sg-modal-header { padding: 15px 20px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
     .sg-modal-header h3 { margin: 0; font-size: 18px; }
     .sg-modal-body { padding: 20px; }
 
-    /* 图片管理样式 */
     .sg-img-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
     @media (max-width: 767px) { .sg-img-grid { grid-template-columns: repeat(2, 1fr); } }
     
     .sg-img-item { position: relative; border: 1px solid #eee; border-radius: 4px; overflow: hidden; background: #000; aspect-ratio: 1; cursor: pointer; }
     .sg-img-box-wrap img, .sg-img-box-wrap video { width: 100%; height: 100%; object-fit: contain; background: #f5f5f5; display: block; }
+    
+    /* 视频图标 - 左下角 */
+    .sg-video-badge {
+        position: absolute; bottom: 8px; left: 8px;
+        background: rgba(0,0,0,0.7); color: #fff;
+        padding: 4px 8px; border-radius: 4px;
+        font-size: 11px; display: flex; align-items: center; gap: 4px;
+        pointer-events: none;
+    }
+    
+    /* 本地图标 - 右上角 */
+    .sg-local-badge {
+        position: absolute; top: 8px; right: 8px;
+        background: rgba(230, 81, 0, 0.9); color: #fff;
+        padding: 3px 8px; border-radius: 4px;
+        font-size: 11px; font-weight: bold;
+        pointer-events: none;
+        z-index: 2;
+    }
     
     .sg-checkbox-overlay {
         position: absolute; top: 0; left: 0; right: 0; bottom: 0;
@@ -53,6 +68,7 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
         display: flex; align-items: flex-start; justify-content: flex-end;
         padding: 5px;
         pointer-events: all; cursor: pointer;
+        z-index: 3;
     }
     .sg-checkbox-overlay:after {
         content: '';
@@ -87,6 +103,8 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
     .sg-btn.primary:hover { background: #3a6a7f; }
     .sg-btn.danger { background: #fff0f0; color: #d9534f; border-color: #ffccc7; }
     .sg-btn.danger:hover { background: #ffccc7; }
+    .sg-btn.local { background: #fff3e0; color: #e65100; border-color: #ffcc80; }
+    .sg-btn.local:hover { background: #ffe0b2; }
     
     .sg-selected-info { font-size: 13px; color: #666; font-weight: bold; }
     
@@ -104,6 +122,35 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
     .sg-form-group { margin-bottom: 15px; }
     .sg-form-group label { display: block; margin-bottom: 5px; font-weight: bold; }
     .sg-form-group input, .sg-form-group textarea { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+
+    /* 本地图片浏览器 */
+    .local-browser { padding: 15px; background: #f9f9f9; border-radius: 6px; margin-bottom: 15px; }
+    .local-browser-header { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #eee; }
+    .local-browser-header .breadcrumb { flex: 1; font-size: 14px; color: #666; }
+    .local-browser-header .breadcrumb span { cursor: pointer; color: #467B96; }
+    .local-browser-header .breadcrumb span:hover { text-decoration: underline; }
+    
+    .local-folders { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 15px; }
+    .local-folder { padding: 10px 15px; background: #fff; border: 1px solid #e0e0e0; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 14px; transition: all 0.2s; }
+    .local-folder:hover { background: #f0f7ff; border-color: #467B96; }
+    
+    .local-images-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; max-height: 400px; overflow-y: auto; }
+    @media (max-width: 767px) { .local-images-grid { grid-template-columns: repeat(3, 1fr); } }
+    
+    .local-img-item { position: relative; aspect-ratio: 1; background: #f5f5f5; border-radius: 4px; overflow: hidden; cursor: pointer; border: 3px solid transparent; }
+    .local-img-item img { width: 100%; height: 100%; object-fit: cover; }
+    .local-img-item.selected { border-color: #467B96; }
+    .local-img-item .check-mark {
+        position: absolute; top: 5px; right: 5px; width: 24px; height: 24px;
+        background: #467B96; border-radius: 50%; display: none;
+        align-items: center; justify-content: center;
+    }
+    .local-img-item.selected .check-mark { display: flex; }
+    .local-img-item .in-album-badge {
+        position: absolute; bottom: 5px; right: 5px;
+        background: rgba(0,0,0,0.6); color: #fff;
+        font-size: 10px; padding: 2px 6px; border-radius: 3px;
+    }
 </style>
 
 <div class="main">
@@ -123,11 +170,12 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
                         $rawCover = $album['cover'];
                         $coverUrl = '';
                         if (!empty($rawCover)) {
-                            if (preg_match('/^(https?:\/\/|\/\/)/i', $rawCover)) { $coverUrl = $rawCover; } 
-                            else { $coverUrl = $options->siteUrl . 'usr/uploads/SmartGallery/' . $rawCover; }
+                            $coverUrl = $options->siteUrl . 'usr/uploads/' . $rawCover;
                         } else {
                             $coverImg = $db->fetchRow($db->select('filename')->from($prefix . 'smart_gallery_images')->where('album_id = ?', $albumId)->order('RAND()')->limit(1));
-                            if ($coverImg) { $coverUrl = $options->siteUrl . 'usr/uploads/SmartGallery/' . $coverImg['filename']; }
+                            if ($coverImg) {
+                                $coverUrl = $options->siteUrl . 'usr/uploads/' . $coverImg['filename'];
+                            }
                         }
                         $count = $db->fetchObject($db->select('COUNT(id) as num')->from($prefix . 'smart_gallery_images')->where('album_id = ?', $albumId))->num;
                         ?>
@@ -186,10 +234,24 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
                 <div class="sg-toolbar-right" style="width:100%; justify-content: space-between;">
                     <span id="selected-count" class="sg-selected-info" style="display:none;">已选 0 张</span>
                     <div style="display:flex; gap:8px;">
+                        <button class="sg-btn local" onclick="openLocalBrowser()">📂 本地图片</button>
                         <button class="sg-btn primary" onclick="handleSetCover()">设为封面</button>
                         <button class="sg-btn danger" onclick="handleDelete()">删除选中</button>
                     </div>
                 </div>
+            </div>
+            
+            <div id="local-browser" class="local-browser" style="display:none;">
+                <div class="local-browser-header">
+                    <div class="breadcrumb">
+                        📁 路径: <span onclick="loadLocalDir('')">uploads</span>
+                        <span id="breadcrumb-path"></span>
+                    </div>
+                    <button class="sg-btn primary" onclick="insertSelectedLocal()">插入选中</button>
+                    <button class="sg-btn" onclick="closeLocalBrowser()">关闭</button>
+                </div>
+                <div id="local-folders" class="local-folders"></div>
+                <div id="local-images" class="local-images-grid"></div>
             </div>
             
             <div id="upload-area" class="upload-area" onclick="document.getElementById('file-input').click()">
@@ -221,13 +283,15 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
 <script>
 var selectedImgs = {};
 var pendingFiles = [];
+var localSelectedImgs = [];
+var currentLocalDir = '';
 
 function createAlbum() {
     var name = document.getElementById('new-album-name').value;
     if(!name) { alert('请输入名称'); return; }
     var formData = new FormData();
     formData.append('name', name);
-    fetch('<?php echo $options->index; ?>/action/smart-gallery?do=create-album', { method: 'POST', body: formData }).then(() => location.reload()).catch(err => alert('创建失败，请检查权限或路径'));
+    fetch('<?php echo $options->index; ?>/action/smart-gallery?do=create-album', { method: 'POST', body: formData }).then(() => location.reload()).catch(err => alert('创建失败'));
 }
 
 function openEditModal(album) {
@@ -257,23 +321,137 @@ function loadImages(id) {
             if(data.length === 0) {
                 html = '<div style="grid-column: 1/-1; text-align:center; color:#999; padding: 40px 0;">暂无内容</div>';
             } else {
-                data.forEach(img => {
-                    var mediaUrl = '<?php echo $options->siteUrl; ?>usr/uploads/SmartGallery/' + img.filename;
-                    var mediaHtml = (img.type === 'video') ? 
+                data.forEach(function(img) {
+                    var mediaUrl = '<?php echo $options->siteUrl; ?>usr/uploads/' + img.filename;
+                    var isVideo = (img.type === 'video');
+                    var isLocal = img.isLocal;
+                    
+                    var mediaHtml = isVideo ? 
                         '<video src="' + mediaUrl + '" muted></video>' : 
                         '<img src="' + mediaUrl + '" loading="lazy">';
+                    
+                    // 视频标签 - 左下角
+                    var videoBadge = isVideo ? 
+                        '<div class="sg-video-badge"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>视频</div>' : '';
+                    
+                    // 本地标签 - 右上角
+                    var localBadge = isLocal ? '<div class="sg-local-badge">本地</div>' : '';
 
-                    html += `
-                    <div class="sg-img-item" data-id="${img.id}" data-filename="${img.filename}" data-album="${id}">
-                        <div class="sg-img-box-wrap">
-                            ${mediaHtml}
-                        </div>
-                        <div class="sg-checkbox-overlay" onclick="toggleSelect(this.parentElement, event)"></div>
-                    </div>`;
+                    html += '<div class="sg-img-item" data-id="' + img.id + '" data-filename="' + img.filename + '" data-album="' + id + '" data-local="' + (isLocal ? '1' : '0') + '">';
+                    html += '<div class="sg-img-box-wrap">' + mediaHtml + '</div>';
+                    html += videoBadge;
+                    html += localBadge;
+                    html += '<div class="sg-checkbox-overlay" onclick="toggleSelect(this.parentElement, event)"></div>';
+                    html += '</div>';
                 });
             }
             box.innerHTML = html;
         });
+}
+
+function openLocalBrowser() {
+    document.getElementById('local-browser').style.display = 'block';
+    localSelectedImgs = [];
+    loadLocalDir('');
+}
+
+function closeLocalBrowser() {
+    document.getElementById('local-browser').style.display = 'none';
+    localSelectedImgs = [];
+}
+
+function loadLocalDir(dir) {
+    currentLocalDir = dir;
+    var foldersEl = document.getElementById('local-folders');
+    var imagesEl = document.getElementById('local-images');
+    var breadcrumbEl = document.getElementById('breadcrumb-path');
+    
+    foldersEl.innerHTML = '<p>加载中...</p>';
+    imagesEl.innerHTML = '';
+    
+    if(dir) {
+        var parts = dir.split('/');
+        var path = '';
+        var html = '';
+        parts.forEach(function(part, i) {
+            path += (i > 0 ? '/' : '') + part;
+            html += ' / <span onclick="loadLocalDir(\'' + path + '\')">' + part + '</span>';
+        });
+        breadcrumbEl.innerHTML = html;
+    } else {
+        breadcrumbEl.innerHTML = '';
+    }
+    
+    fetch('<?php echo $options->index; ?>/action/smart-gallery?do=scan-local&dir=' + encodeURIComponent(dir))
+        .then(res => res.json())
+        .then(data => {
+            var folderHtml = '';
+            if(data.folders && data.folders.length > 0) {
+                data.folders.forEach(function(folder) {
+                    folderHtml += '<div class="local-folder" onclick="loadLocalDir(\'' + folder.path + '\')">';
+                    folderHtml += '📁 ' + folder.name;
+                    folderHtml += '</div>';
+                });
+            }
+            foldersEl.innerHTML = folderHtml || '<p style="color:#999;font-size:13px;">无子文件夹</p>';
+            
+            var imgHtml = '';
+            if(data.images && data.images.length > 0) {
+                data.images.forEach(function(img) {
+                    var imgUrl = '<?php echo $options->siteUrl; ?>usr/uploads/' + img.path;
+                    var inAlbumBadge = img.inAlbum ? '<div class="in-album-badge">已在相册</div>' : '';
+                    
+                    imgHtml += '<div class="local-img-item" data-path="' + img.path + '" onclick="toggleLocalSelect(this)">';
+                    imgHtml += '<img src="' + imgUrl + '">';
+                    imgHtml += '<div class="check-mark"><svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg></div>';
+                    imgHtml += inAlbumBadge;
+                    imgHtml += '</div>';
+                });
+            }
+            imagesEl.innerHTML = imgHtml || '<p style="color:#999;font-size:13px;grid-column:1/-1;text-align:center;">无图片</p>';
+        });
+}
+
+function toggleLocalSelect(el) {
+    var path = el.getAttribute('data-path');
+    var idx = localSelectedImgs.indexOf(path);
+    if (idx > -1) {
+        localSelectedImgs.splice(idx, 1);
+        el.classList.remove('selected');
+    } else {
+        localSelectedImgs.push(path);
+        el.classList.add('selected');
+    }
+}
+
+function insertSelectedLocal() {
+    if(localSelectedImgs.length === 0) {
+        alert('请先选择图片');
+        return;
+    }
+    
+    var albumId = document.getElementById('current-album-id').value;
+    
+    var params = 'album_id=' + encodeURIComponent(albumId);
+    localSelectedImgs.forEach(function(path) {
+        params += '&paths[]=' + encodeURIComponent(path);
+    });
+    
+    fetch('<?php echo $options->index; ?>/action/smart-gallery?do=insert-local', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: params
+    })
+    .then(res => res.json())
+    .then(data => {
+        if(data.status === 'success') {
+            alert('成功插入 ' + data.count + ' 张图片');
+            closeLocalBrowser();
+            loadImages(albumId);
+        } else {
+            alert('插入失败: ' + (data.msg || '未知错误'));
+        }
+    });
 }
 
 function handleFileSelect(files) {
@@ -294,8 +472,8 @@ function updateFileList() {
     }
     controlsEl.style.display = 'block';
     var html = '';
-    pendingFiles.forEach((file, index) => {
-        html += `<div class="file-item"><span>${file.name} (${formatSize(file.size)})</span><button onclick="removeFile(${index})" style="background:none; border:none; color:#d9534f; cursor:pointer;">✕</button></div>`;
+    pendingFiles.forEach(function(file, index) {
+        html += '<div class="file-item"><span>' + file.name + ' (' + formatSize(file.size) + ')</span><button onclick="removeFile(' + index + ')" style="background:none; border:none; color:#d9534f; cursor:pointer;">✕</button></div>';
     });
     listEl.innerHTML = html;
 }
@@ -329,7 +507,7 @@ function startUpload() {
     
     var formData = new FormData();
     formData.append('album_id', albumId);
-    pendingFiles.forEach((file, index) => {
+    pendingFiles.forEach(function(file) {
         formData.append('files[]', file, file.name);
     });
     
@@ -363,13 +541,8 @@ function startUpload() {
                 uploadBtn.disabled = false;
                 uploadBtn.innerText = '开始上传';
             }
-        } else {
-            alert('上传失败');
-            uploadBtn.disabled = false;
-            uploadBtn.innerText = '开始上传';
         }
     });
-    xhr.addEventListener('error', function() { alert('网络错误'); uploadBtn.disabled = false; uploadBtn.innerText = '开始上传'; });
     xhr.open('POST', '<?php echo $options->index; ?>/action/smart-gallery?do=upload');
     xhr.send(formData);
 }
@@ -404,14 +577,14 @@ function updateCount() {
         countEl.style.display = 'inline';
         countEl.innerText = '已选 ' + count + ' 张';
     } else {
-        countEl.style.display = 'none'; // 修复：此处原本缺少单引号，导致JS解析错误
+        countEl.style.display = 'none';
     }
 }
 
 function clearSelection() {
     selectedImgs = {};
     updateCount();
-    document.querySelectorAll('.sg-img-item.selected').forEach(item => item.classList.remove('selected'));
+    document.querySelectorAll('.sg-img-item.selected').forEach(function(item) { item.classList.remove('selected'); });
 }
 
 function handleSetCover() {
@@ -424,7 +597,7 @@ function handleSetCover() {
     formData.append('album_id', imgData.albumId);
     fetch('<?php echo $options->index; ?>/action/smart-gallery?do=set-cover', { method: 'POST', body: formData })
     .then(res => res.json())
-    .then(d => { 
+    .then(function(d) { 
         if(d.status === 'success') { alert('封面已更新'); location.reload(); } 
         else alert('设置失败');
     });
@@ -433,23 +606,23 @@ function handleSetCover() {
 function handleDelete() {
     var ids = Object.keys(selectedImgs);
     if(ids.length === 0) { alert('请先勾选图片'); return; }
-    if(!confirm('确定要删除选中的 ' + ids.length + ' 张图片吗？此操作不可恢复。')) return;
-    var promises = ids.map(id => fetch('<?php echo $options->index; ?>/action/smart-gallery?do=delete-img&id=' + id));
-    Promise.all(promises).then(() => {
+    if(!confirm('确定要移除选中的 ' + ids.length + ' 张图片吗？\n\n注意：本地图片只会从相册移除，不会删除源文件。')) return;
+    var promises = ids.map(function(id) { return fetch('<?php echo $options->index; ?>/action/smart-gallery?do=delete-img&id=' + id); });
+    Promise.all(promises).then(function() {
         var albumId = document.getElementById('current-album-id').value;
         loadImages(albumId);
     });
 }
 
 function deleteAlbum(id) {
-    if(confirm('确定删除该相册？相册内图片将一并删除。')) {
+    if(confirm('确定删除该相册？相册内图片将一并删除（本地图片不会删除源文件）。')) {
         window.location.href = '<?php echo $options->index; ?>/action/smart-gallery?do=delete-album&id=' + id;
     }
 }
 
 function closeModal(mid) { document.getElementById(mid).style.display = 'none'; }
 
-document.querySelectorAll('.sg-modal-overlay').forEach(modal => {
+document.querySelectorAll('.sg-modal-overlay').forEach(function(modal) {
     modal.addEventListener('click', function(e) { if (e.target === this) closeModal(this.id); });
 });
 </script>
