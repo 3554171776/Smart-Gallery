@@ -224,12 +224,15 @@ class SmartGallery_Plugin implements Typecho_Plugin_Interface
             $isPrivate = isset($album['password']) && !empty($album['password']);
             $description = isset($album['description']) ? $album['description'] : '';
             
+            // 【修复】封面URL - 统一拼接
             $coverUrl = '';
             if (isset($album['cover']) && !empty($album['cover'])) {
-                $coverUrl = (preg_match('/^(https?:\/\/|\/\/)/i', $album['cover'])) ? $album['cover'] : $options->siteUrl . 'usr/uploads/SmartGallery/' . $album['cover'];
+                $coverUrl = $options->siteUrl . 'usr/uploads/' . $album['cover'];
             } else {
                 $coverImg = $db->fetchRow($db->select('filename')->from($prefix . 'smart_gallery_images')->where('album_id = ?', $albumId)->order('RAND()')->limit(1));
-                if ($coverImg) { $coverUrl = $options->siteUrl . 'usr/uploads/SmartGallery/' . $coverImg['filename']; }
+                if ($coverImg) { 
+                    $coverUrl = $options->siteUrl . 'usr/uploads/' . $coverImg['filename']; 
+                }
             }
             if (empty($coverUrl)) { $coverUrl = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 3"%3E%3Crect fill="%23eee" width="4" height="3"/%3E%3Ctext fill="%23ccc" x="50%25" y="50%25" dominant-baseline="middle" text-anchor="middle" font-size="0.5"%3E空%3C/text%3E%3C/svg%3E'; }
 
@@ -265,7 +268,8 @@ class SmartGallery_Plugin implements Typecho_Plugin_Interface
                 $html .= '<div class="sg-images-grid">';
                 $images = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_images')->where('album_id = ?', $albumId)->order('order', Typecho_Db::SORT_ASC));
                 foreach ($images as $img) {
-                    $imgUrl = $options->siteUrl . 'usr/uploads/SmartGallery/' . $img['filename'];
+                    // 【修复】图片URL统一拼接
+                    $imgUrl = $options->siteUrl . 'usr/uploads/' . $img['filename'];
                     if (isset($img['type']) && $img['type'] === 'video') {
                         $html .= '<div class="sg-img-item"><div class="img-box"><video src="' . $imgUrl . '" controls style="object-fit:cover;"></video></div></div>';
                     } else {
@@ -296,7 +300,7 @@ class SmartGallery_Plugin implements Typecho_Plugin_Interface
             }
             function showPasswordBox(id) {
                 var body = document.getElementById("sg-body-" + id);
-                body.innerHTML = `<div class="sg-password-box"><h3>该相册需要密码访问</h3><div class="input-group"><input type="password" id="sg_pwd_`+id+`" placeholder="请输入访问密码"><button onclick="checkGalleryPwd(`+id+`, event)">解锁</button></div><div class="msg" id="sg_msg_`+id+`"></div></div>`;
+                body.innerHTML = \'<div class="sg-password-box"><h3>该相册需要密码访问</h3><div class="input-group"><input type="password" id="sg_pwd_\' + id + \'" placeholder="请输入访问密码"><button onclick="checkGalleryPwd(\' + id + \', event)">解锁</button></div><div class="msg" id="sg_msg_\' + id + \'"></div></div>\';
             }
             function sgCloseModal(id, e) {
                 if(e && e.stopPropagation) { e.stopPropagation(); }
@@ -329,7 +333,7 @@ class SmartGallery_Plugin implements Typecho_Plugin_Interface
                                 var images = JSON.parse(imgXhr.responseText);
                                 var html = \'<div class="sg-images-grid">\';
                                 images.forEach(function(img) {
-                                    var url = "' . $options->siteUrl . 'usr/uploads/SmartGallery/" + img.filename;
+                                    var url = "' . $options->siteUrl . 'usr/uploads/" + img.filename;
                                     if(img.type === "video") html += \'<div class="sg-img-item"><div class="img-box"><video src="\' + url + \'" controls></video></div></div>\';
                                     else html += \'<div class="sg-img-item"><div class="img-box"><a href="\' + url + \'" data-fancybox="gallery-\' + id + \'"><img src="\' + url + \'" loading="lazy"></a></div></div>\';
                                 });
