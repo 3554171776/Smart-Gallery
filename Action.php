@@ -63,6 +63,8 @@ class SmartGallery_Action extends Widget implements ActionInterface
         $this->on($this->request->is('do=set-cover'))->setCover();
         $this->on($this->request->is('do=fetch-images'))->fetchImages();
         $this->on($this->request->is('do=check-pwd'))->checkPassword();
+        $this->on($this->request->is('do=scan-local'))->scanLocalImages();
+        $this->on($this->request->is('do=insert-local'))->insertLocalImages();
     }
 
     private function goBack() {
@@ -124,6 +126,14 @@ class SmartGallery_Action extends Widget implements ActionInterface
         return $defaultConfig;
     }
 
+    /**
+     * 判断是否为本地图片（非相册上传）
+     */
+    private function isLocalImage($filename)
+    {
+        return (strpos($filename, 'SmartGallery/') !== 0);
+    }
+
     public function createAlbum()
     {
         $name = $this->request->get('name');
@@ -154,11 +164,162 @@ class SmartGallery_Action extends Widget implements ActionInterface
         $id = $this->request->get('id');
         if(empty($id)) throw new \Typecho\Plugin\Exception('ID无效');
         $images = $this->db->fetchAll($this->db->select('filename')->from($this->prefix . 'smart_gallery_images')->where('album_id = ?', $id));
-        $uploadDir = __TYPECHO_ROOT_DIR__ . '/usr/uploads/SmartGallery/';
-        foreach ($images as $img) @unlink($uploadDir . $img['filename']);
+        
+        foreach ($images as $img) {
+            // 只删除相册上传的文件，本地插入的不删除
+            if (!$this->isLocalImage($img['filename'])) {
+                $filePath = __TYPECHO_ROOT_DIR__ . '/usr/uploads/' . $img['filename'];
+                if (file_exists($filePath)) {
+                    @unlink($filePath);
+                }
+            }
+        }
+        
         $this->db->query($this->db->delete($this->prefix . 'smart_gallery_images')->where('album_id = ?', $id));
         $this->db->query($this->db->delete($this->prefix . 'smart_gallery_albums')->where('id = ?', $id));
         $this->goBack();
+    }
+
+    /**
+     * 获取PHP内存限制（字节）
+     */
+    private function getPhpMemoryLimitBytes()
+    {
+        $val = @ini_get('memory_limit');
+        if ($val === false || $val === '' || $val === '-1') {
+            return -1;
+        }
+        $last = strtolower(substr($val, -1));
+        $num = (int)$val;
+        switch ($last) {
+            case 'g': return $num * 1024 * 1024 * 1024;
+            case 'm': return $num * 1024 * 1024;
+            case 'k': return $num * 1024;
+            default: return (int)$val;
+        }
+    }
+
+    /**
+     * 确保有足够内存处理图片
+     */
+    private function ensureMemoryForImage($width, $height, $safetyFactor = 2.0)
+    {
+        $bytesPerPixel = 6.0;
+        $estimated = (int)ceil($width * $height * $bytesPerPixel * $safetyFactor);
+
+        $usage = function_exists('memory_get_usage') ? memory_get_usage(true) : 0;
+        $limit = $this->getPhpMemoryLimitBytes();
+        if ($limit > 0 && ($usage + $estimated) < $limit) {
+            return true;
+        }
+
+        $targets = ['1024M', '768M', '512M'];
+        foreach ($targets as $t) {
+            @ini_set('memory_limit', $t);
+            $limit = $this->getPhpMemoryLimitBytes();
+            if ($limit > 0 && ($usage + $estimated) < $limit) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * WebP压缩处理
+     */
+    private function processWebPCompression($filePath, $quality)
+    {
+        if (!extension_loaded('gd') || !function_exists('imagewebp')) {
+            return ['success' => false, 'reason' => 'GD or WebP not supported'];
+        }
+
+        $imageInfo = @getimagesize($filePath);
+        if (!$imageInfo) {
+            return ['success' => false, 'reason' => 'Cannot get image info'];
+        }
+
+        $imgW = $imageInfo[0];
+        $imgH = $imageInfo[1];
+        $hasMemory = $this->ensureMemoryForImage($imgW, $imgH, 2.0);
+
+        $sourceImage = null;
+        switch ($imageInfo[2]) {
+            case IMAGETYPE_JPEG:
+                $sourceImage = @imagecreatefromjpeg($filePath);
+                break;
+            case IMAGETYPE_PNG:
+                $sourceImage = @imagecreatefrompng($filePath);
+                break;
+            case IMAGETYPE_GIF:
+                $sourceImage = @imagecreatefromgif($filePath);
+                break;
+            case IMAGETYPE_WEBP:
+                return ['success' => false, 'reason' => 'Already WebP format'];
+            default:
+                return ['success' => false, 'reason' => 'Unsupported image type'];
+        }
+
+        if (!$sourceImage) {
+            return ['success' => false, 'reason' => 'Cannot create image resource'];
+        }
+
+        $srcW = imagesx($sourceImage);
+        $srcH = imagesy($sourceImage);
+        $maxSide = 1080;
+        $longer = max($srcW, $srcH);
+        $capScale = ($longer > $maxSide) ? ($maxSide / $longer) : 1.0;
+
+        $memScale = 1.0;
+        if (!$hasMemory) {
+            $limit = $this->getPhpMemoryLimitBytes();
+            $usage = function_exists('memory_get_usage') ? memory_get_usage(true) : 0;
+            $available = ($limit > 0) ? max(0, $limit - $usage) : (512 * 1024 * 1024);
+            $bytesPerPixel = 6.0 * 2.0;
+            $maxPixels = (int)floor($available / $bytesPerPixel);
+            if ($maxPixels > 0 && ($srcW * $srcH) > $maxPixels) {
+                $memScale = sqrt($maxPixels / ($srcW * $srcH));
+            }
+        }
+
+        $finalScale = max(0.01, min($capScale, $memScale));
+
+        if ($finalScale < 0.999) {
+            $dstW = max(1, (int)floor($srcW * $finalScale));
+            $dstH = max(1, (int)floor($srcH * $finalScale));
+            $tmp = imagecreatetruecolor($dstW, $dstH);
+            if ($tmp) {
+                if ($imageInfo[2] === IMAGETYPE_PNG || $imageInfo[2] === IMAGETYPE_GIF) {
+                    imagealphablending($tmp, false);
+                    imagesavealpha($tmp, true);
+                    $transparent = imagecolorallocatealpha($tmp, 0, 0, 0, 127);
+                    imagefill($tmp, 0, 0, $transparent);
+                }
+                imagecopyresampled($tmp, $sourceImage, 0, 0, 0, 0, $dstW, $dstH, $srcW, $srcH);
+                imagedestroy($sourceImage);
+                $sourceImage = $tmp;
+            }
+        }
+
+        $outputPath = $filePath . '.webp';
+
+        if ($imageInfo[2] === IMAGETYPE_PNG) {
+            imagesavealpha($sourceImage, true);
+        }
+
+        $success = imagewebp($sourceImage, $outputPath, $quality);
+        imagedestroy($sourceImage);
+
+        if ($success && file_exists($outputPath)) {
+            $originalSize = @filesize($filePath) ?: PHP_INT_MAX;
+            $newSize = @filesize($outputPath) ?: PHP_INT_MAX;
+            if ($newSize < $originalSize * 0.98) {
+                return ['success' => true, 'path' => $outputPath];
+            }
+            @unlink($outputPath);
+            return ['success' => false, 'reason' => 'WebP not smaller'];
+        }
+
+        return ['success' => false, 'reason' => 'Failed to save WebP'];
     }
 
     public function upload()
@@ -167,8 +328,8 @@ class SmartGallery_Action extends Widget implements ActionInterface
         $albumId = $this->request->get('album_id');
         if (empty($albumId)) die(json_encode(['status' => 'error', 'msg' => '未指定相册']));
 
-        $files = $_FILES['files'];
-        $uploadDir = __TYPECHO_ROOT_DIR__ . '/usr/uploads/SmartGallery/';
+        $dateDir = date('Y/m');
+        $uploadDir = __TYPECHO_ROOT_DIR__ . '/usr/uploads/SmartGallery/' . $dateDir . '/';
         if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
 
         $config = $this->getRealConfig();
@@ -179,6 +340,7 @@ class SmartGallery_Action extends Widget implements ActionInterface
         if ($imgQuality > 100) $imgQuality = 100;
 
         $count = 0;
+        $files = $_FILES['files'];
         $fileCount = count($files['name']);
         
         for ($i = 0; $i < $fileCount; $i++) {
@@ -189,57 +351,41 @@ class SmartGallery_Action extends Widget implements ActionInterface
                 
                 $timeStamp = time() . rand(100, 999);
 
-                // 视频处理：直接保存，不再转码
                 if (in_array($ext, ['mp4', 'webm', 'mov', 'avi', 'mkv'])) {
                     $type = 'video';
                     $filename = "video_{$timeStamp}." . $ext;
                     move_uploaded_file($tmpName, $uploadDir . $filename);
                 } else {
-                    // 图片处理：WebP转换或直接保存
-                    if ($useWebp && function_exists('imagewebp')) {
-                        $imageInfo = @getimagesize($tmpName);
-                        $im = false;
-                        
-                        if ($imageInfo) {
-                            switch ($imageInfo[2]) {
-                                case IMAGETYPE_JPEG: $im = @imagecreatefromjpeg($tmpName); break;
-                                case IMAGETYPE_PNG: 
-                                    $im = @imagecreatefrompng($tmpName);
-                                    if ($im) {
-                                        $width = imagesx($im); $height = imagesy($im);
-                                        $newIm = imagecreatetruecolor($width, $height);
-                                        $white = imagecolorallocate($newIm, 255, 255, 255);
-                                        imagefilledrectangle($newIm, 0, 0, $width, $height, $white);
-                                        imagecopy($newIm, $im, 0, 0, 0, 0, $width, $height);
-                                        imagedestroy($im); $im = $newIm;
-                                    }
-                                    break;
-                                case IMAGETYPE_GIF: $im = @imagecreatefromgif($tmpName); break;
+                    $finalPath = $tmpName;
+                    $finalExt = $ext;
+                    
+                    if ($useWebp) {
+                        try {
+                            $result = $this->processWebPCompression($tmpName, $imgQuality);
+                            if ($result['success'] && isset($result['path']) && $result['path'] !== $tmpName) {
+                                $finalPath = $result['path'];
+                                $finalExt = 'webp';
                             }
-                        }
-                        
-                        if ($im) {
-                            $filename = "q{$imgQuality}_{$timeStamp}.webp";
-                            $filepath = $uploadDir . $filename;
-                            @imagewebp($im, $filepath, $imgQuality);
-                            @imagedestroy($im);
-                            
-                            if (!file_exists($filepath) || filesize($filepath) == 0) {
-                                $filename = "raw_{$timeStamp}." . $ext;
-                                move_uploaded_file($tmpName, $uploadDir . $filename);
-                            }
-                        } else {
-                            $filename = "raw_{$timeStamp}." . $ext;
-                            move_uploaded_file($tmpName, $uploadDir . $filename);
-                        }
+                        } catch (\Exception $e) {}
+                    }
+                    
+                    if ($finalExt === 'webp') {
+                        $filename = "q{$imgQuality}_{$timeStamp}.webp";
                     } else {
-                        $filename = "raw_{$timeStamp}." . $ext;
+                        $filename = "raw_{$timeStamp}." . $finalExt;
+                    }
+                    
+                    if ($finalPath !== $tmpName) {
+                        rename($finalPath, $uploadDir . $filename);
+                    } else {
                         move_uploaded_file($tmpName, $uploadDir . $filename);
                     }
                 }
 
+                $dbFilename = 'SmartGallery/' . $dateDir . '/' . $filename;
+                
                 $this->db->query($this->db->insert($this->prefix . 'smart_gallery_images')->rows(array(
-                    'album_id' => $albumId, 'filename' => $filename,
+                    'album_id' => $albumId, 'filename' => $dbFilename,
                     'type'     => $type, 'created'  => time()
                 )));
                 $count++;
@@ -253,6 +399,11 @@ class SmartGallery_Action extends Widget implements ActionInterface
     {
         $albumId = $this->request->get('album_id');
         $images = $this->db->fetchAll($this->db->select()->from($this->prefix . 'smart_gallery_images')->where('album_id = ?', $albumId)->order('order', Db::SORT_ASC));
+        
+        foreach ($images as &$img) {
+            $img['isLocal'] = $this->isLocalImage($img['filename']);
+        }
+        
         echo json_encode($images);
     }
 
@@ -269,7 +420,16 @@ class SmartGallery_Action extends Widget implements ActionInterface
         $id = $this->request->get('id');
         $image = $this->db->fetchRow($this->db->select('filename')->from($this->prefix . 'smart_gallery_images')->where('id = ?', $id));
         if ($image) {
-            @unlink(__TYPECHO_ROOT_DIR__ . '/usr/uploads/SmartGallery/' . $image['filename']);
+            $isLocal = $this->isLocalImage($image['filename']);
+            
+            // 只有非本地图片才删除文件
+            if (!$isLocal) {
+                $filePath = __TYPECHO_ROOT_DIR__ . '/usr/uploads/' . $image['filename'];
+                if (file_exists($filePath)) {
+                    @unlink($filePath);
+                }
+            }
+            
             $this->db->query($this->db->delete($this->prefix . 'smart_gallery_images')->where('id = ?', $id));
         }
         echo json_encode(['status' => 'success']);
@@ -279,17 +439,15 @@ class SmartGallery_Action extends Widget implements ActionInterface
     {
         if (session_status() == PHP_SESSION_NONE) session_start();
         
-        // 兼容性修复：直接从输入流获取JSON数据
         $json = file_get_contents('php://input');
         $data = json_decode($json, true);
         
-        // 兼容两种方式：JSON体 或 GET参数
         $albumId = isset($data['album_id']) ? $data['album_id'] : $this->request->get('album_id');
         $password = isset($data['password']) ? $data['password'] : $this->request->get('password');
 
         $album = $this->db->fetchRow($this->db->select('password')->from($this->prefix . 'smart_gallery_albums')->where('id = ?', $albumId));
         
-        header('Content-Type: application/json'); // 确保返回JSON头
+        header('Content-Type: application/json');
         
         if ($album && $album['password'] === $password) {
             $_SESSION['sg_unlocked_'.$albumId] = true;
@@ -297,5 +455,126 @@ class SmartGallery_Action extends Widget implements ActionInterface
         } else {
             echo json_encode(['status' => 'error']);
         }
+    }
+
+    public function scanLocalImages()
+    {
+        $dir = $this->request->get('dir', '');
+        $uploadBase = __TYPECHO_ROOT_DIR__ . '/usr/uploads/';
+        
+        $existingImages = $this->db->fetchAll($this->db->select('filename')->from($this->prefix . 'smart_gallery_images'));
+        $existingFiles = array_column($existingImages, 'filename');
+        
+        $folders = [];
+        $images = [];
+        
+        $currentPath = $uploadBase . $dir;
+        if (!is_dir($currentPath)) {
+            $currentPath = $uploadBase;
+            $dir = '';
+        }
+        
+        $items = @scandir($currentPath);
+        if ($items) {
+            foreach ($items as $item) {
+                if ($item === '.' || $item === '..') continue;
+                
+                $fullPath = $currentPath . '/' . $item;
+                $relPath = ($dir ? $dir . '/' : '') . $item;
+                
+                if (is_dir($fullPath)) {
+                    $folders[] = [
+                        'name' => $item,
+                        'path' => $relPath,
+                        'type' => 'folder'
+                    ];
+                } elseif (is_file($fullPath)) {
+                    $ext = strtolower(pathinfo($item, PATHINFO_EXTENSION));
+                    
+                    $imgExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'];
+                    $videoExts = ['mp4', 'webm', 'mov', 'avi', 'mkv'];
+                    
+                    if (in_array($ext, $imgExts)) {
+                        $isInAlbum = in_array($relPath, $existingFiles);
+                        $images[] = [
+                            'name' => $item,
+                            'path' => $relPath,
+                            'type' => 'image',
+                            'inAlbum' => $isInAlbum
+                        ];
+                    } elseif (in_array($ext, $videoExts)) {
+                        $isInAlbum = in_array($relPath, $existingFiles);
+                        $images[] = [
+                            'name' => $item,
+                            'path' => $relPath,
+                            'type' => 'video',
+                            'inAlbum' => $isInAlbum
+                        ];
+                    }
+                }
+            }
+        }
+        
+        usort($folders, function($a, $b) { return strcasecmp($a['name'], $b['name']); });
+        usort($images, function($a, $b) { return strcasecmp($a['name'], $b['name']); });
+        
+        echo json_encode([
+            'status' => 'success',
+            'currentDir' => $dir,
+            'folders' => $folders,
+            'images' => $images
+        ]);
+    }
+
+    public function insertLocalImages()
+    {
+        if (session_status() == PHP_SESSION_NONE) session_start();
+        
+        $albumId = $this->request->get('album_id');
+        
+        $paths = $this->request->get('paths');
+        if (empty($paths)) {
+            $json = file_get_contents('php://input');
+            $data = json_decode($json, true);
+            if (isset($data['paths'])) {
+                $paths = $data['paths'];
+            }
+        }
+        if (empty($paths)) {
+            $paths = isset($_GET['paths']) ? $_GET['paths'] : (isset($_POST['paths']) ? $_POST['paths'] : []);
+        }
+        if (!is_array($paths)) {
+            $paths = [$paths];
+        }
+        
+        if (empty($albumId)) {
+            die(json_encode(['status' => 'error', 'msg' => '未指定相册']));
+        }
+        if (empty($paths)) {
+            die(json_encode(['status' => 'error', 'msg' => '请选择图片']));
+        }
+        
+        $count = 0;
+        foreach ($paths as $path) {
+            $fullPath = __TYPECHO_ROOT_DIR__ . '/usr/uploads/' . $path;
+            if (!file_exists($fullPath)) continue;
+            
+            $exists = $this->db->fetchRow($this->db->select('id')->from($this->prefix . 'smart_gallery_images')->where('filename = ?', $path));
+            if ($exists) continue;
+            
+            $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+            $videoExts = ['mp4', 'webm', 'mov', 'avi', 'mkv'];
+            $type = in_array($ext, $videoExts) ? 'video' : 'image';
+            
+            $this->db->query($this->db->insert($this->prefix . 'smart_gallery_images')->rows(array(
+                'album_id' => $albumId, 
+                'filename' => $path,
+                'type'     => $type, 
+                'created'  => time()
+            )));
+            $count++;
+        }
+        
+        echo json_encode(['status' => 'success', 'count' => $count]);
     }
 }
