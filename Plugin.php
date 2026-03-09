@@ -67,7 +67,6 @@ class SmartGallery_Plugin implements Typecho_Plugin_Interface
     {
         $db = Typecho_Db::get();
         $prefix = $db->getPrefix();
-        
         $currentConfig = self::getConfig($db, $prefix);
 
         $gdStatus = function_exists('gd_info') ? '<span style="color:#28a745;">✔ 已安装</span>' : '<span style="color:#dc3545;">✘ 未安装</span>';
@@ -128,26 +127,17 @@ class SmartGallery_Plugin implements Typecho_Plugin_Interface
             'webp' => '0', 
             'imgQuality' => '80'
         ];
-        
         try {
-            $row = $db->fetchRow(
-                $db->select('value')
-                ->from($prefix . 'options')
-                ->where('name = ?', 'plugin:SmartGallery')
-            );
-            
+            $row = $db->fetchRow($db->select('value')->from($prefix . 'options')->where('name = ?', 'plugin:SmartGallery'));
             if ($row && isset($row['value']) && !empty($row['value'])) {
                 $data = self::safeUnserialize($row['value']);
                 if (is_array($data)) {
                     foreach ($data as $key => $value) {
-                        if ($value !== null && $value !== '') {
-                            $defaultConfig[$key] = $value;
-                        }
+                        if ($value !== null && $value !== '') $defaultConfig[$key] = $value;
                     }
                 }
             }
         } catch (Exception $e) {}
-        
         return $defaultConfig;
     }
 
@@ -169,13 +159,12 @@ class SmartGallery_Plugin implements Typecho_Plugin_Interface
         $db = Typecho_Db::get();
         $prefix = $db->getPrefix();
         $options = Typecho_Widget::widget('Widget_Options');
-        
         $pluginOptions = self::getConfig($db, $prefix);
         
         $pcCols = isset($pluginOptions['pcCols']) ? intval($pluginOptions['pcCols']) : 4;
         $mobileCols = isset($pluginOptions['mobileCols']) ? intval($pluginOptions['mobileCols']) : 2;
 
-        // CSS 样式
+        // CSS样式
         $css = '<style>
             .sg-album-grid { display: grid; grid-gap: 25px; margin: 20px 0; }
             @media (min-width: 768px) { .sg-album-grid { grid-template-columns: repeat(' . $pcCols . ', 1fr); } }
@@ -277,7 +266,6 @@ class SmartGallery_Plugin implements Typecho_Plugin_Interface
                 $images = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_images')->where('album_id = ?', $albumId)->order('order', Typecho_Db::SORT_ASC));
                 foreach ($images as $img) {
                     $imgUrl = $options->siteUrl . 'usr/uploads/SmartGallery/' . $img['filename'];
-                    
                     if (isset($img['type']) && $img['type'] === 'video') {
                         $html .= '<div class="sg-img-item"><div class="img-box"><video src="' . $imgUrl . '" controls style="object-fit:cover;"></video></div></div>';
                     } else {
@@ -286,7 +274,6 @@ class SmartGallery_Plugin implements Typecho_Plugin_Interface
                 }
                 $html .= '</div>';
             }
-
             $html .= '</div></div></div>';
         }
 
