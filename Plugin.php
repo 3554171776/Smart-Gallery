@@ -6,7 +6,7 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
  * 
  * @package Smart Gallery
  * @author 落花雨记
- * @version 2.3.0
+ * @version 1.0.0
  * @link https://www.luohuayu.cn
  */
 
