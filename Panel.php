@@ -7,7 +7,6 @@ include 'menu.php';
 $db = Typecho_Db::get();
 $prefix = $db->getPrefix();
 $options = Typecho_Widget::widget('Widget_Options');
-
 $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->order('created', Typecho_Db::SORT_DESC));
 
 ?>
@@ -27,8 +26,10 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
     .sg-card-actions button.primary { color: #467B96; font-weight: bold; }
     .sg-card-actions button.warn { color: #d9534f; }
 
-    .sg-create-box { background: #fff; padding: 20px; border-radius: 8px; margin-bottom: 20px; display: flex; gap: 10px; align-items: center; box-shadow: 0 1px 5px rgba(0,0,0,0.05); }
-    .sg-create-box input { padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; flex: 1; }
+    /* 修复：防止按钮溢出 */
+    .sg-create-box { background: #fff; padding: 20px; border-radius: 8px; margin-bottom: 20px; display: flex; gap: 10px; align-items: center; box-shadow: 0 1px 5px rgba(0,0,0,0.05); flex-wrap: wrap; }
+    .sg-create-box input { padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; flex: 1; min-width: 200px; }
+    .sg-create-box .btn { flex-shrink: 0; white-space: nowrap; } /* 强制不换行不压缩 */
 
     /* 弹窗基础 */
     .sg-modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 10000; align-items: center; justify-content: center; }
@@ -41,13 +42,9 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
     .sg-img-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
     @media (max-width: 767px) { .sg-img-grid { grid-template-columns: repeat(2, 1fr); } }
     
-    /* 图片项 */
-    /* 增加 pointer-events: none 使得点击能穿透到子元素或父元素指定区域 */
     .sg-img-item { position: relative; border: 1px solid #eee; border-radius: 4px; overflow: hidden; background: #000; aspect-ratio: 1; cursor: pointer; }
-    .sg-img-box-wrap { width: 100%; height: 100%; pointer-events: none; } /* 内容区不可点击，防止干扰 */
     .sg-img-box-wrap img, .sg-img-box-wrap video { width: 100%; height: 100%; object-fit: contain; background: #f5f5f5; display: block; }
     
-    /* 勾选遮罩层 - 覆盖全图，用于选中操作 */
     .sg-checkbox-overlay {
         position: absolute; top: 0; left: 0; right: 0; bottom: 0;
         background: rgba(0,0,0,0.1); 
@@ -55,11 +52,8 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
         transition: all 0.2s;
         display: flex; align-items: flex-start; justify-content: flex-end;
         padding: 5px;
-        pointer-events: all; /* 只有遮罩层可点击 */
-        cursor: pointer;
+        pointer-events: all; cursor: pointer;
     }
-    
-    /* 勾选图标 */
     .sg-checkbox-overlay:after {
         content: '';
         width: 22px; height: 22px;
@@ -69,8 +63,6 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
         box-shadow: 0 1px 3px rgba(0,0,0,0.2);
         transition: all 0.2s;
     }
-
-    /* 选中状态样式 */
     .sg-img-item.selected .sg-checkbox-overlay {
         background: rgba(70,123,150,0.25);
         border-color: #467B96;
@@ -83,7 +75,6 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
         background-size: 14px; background-position: center; background-repeat: no-repeat;
     }
 
-    /* 管理工具栏 */
     .sg-toolbar {
         display: flex; gap: 10px; margin-bottom: 15px; padding: 12px; background: #f0f2f5; border-radius: 6px; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 5; flex-wrap: wrap;
     }
@@ -99,7 +90,6 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
     
     .sg-selected-info { font-size: 13px; color: #666; font-weight: bold; }
     
-    /* 上传区域优化 */
     .upload-area { border: 2px dashed #ddd; padding: 20px; text-align: center; border-radius: 4px; background: #fff; cursor: pointer; transition: all 0.3s; }
     .upload-area:hover { border-color: #467B96; background: #f9fbfc; }
     .upload-area.dragover { border-color: #467B96; background: #f0f7ff; }
@@ -107,10 +97,8 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
     .file-list { margin-top: 15px; text-align: left; max-height: 150px; overflow-y: auto; }
     .file-item { display: flex; justify-content: space-between; align-items: center; padding: 5px 10px; background: #f5f5f5; margin-bottom: 5px; border-radius: 3px; font-size: 12px; }
     
-    /* 上传进度条样式 */
     .upload-progress { margin-top: 10px; display: none; }
     .upload-progress-bar { height: 4px; background: #467B96; width: 0; transition: width 0.3s; }
-    /* 增加百分比文字 */
     .upload-percent-text { font-size: 12px; color: #467B96; margin-top: 5px; text-align: center; font-weight: bold; }
 
     .sg-form-group { margin-bottom: 15px; }
@@ -194,7 +182,6 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
             <button onclick="closeModal('images-modal')">&times;</button>
         </div>
         <div class="sg-modal-body">
-            <!-- 工具栏 -->
             <div class="sg-toolbar">
                 <div class="sg-toolbar-right" style="width:100%; justify-content: space-between;">
                     <span id="selected-count" class="sg-selected-info" style="display:none;">已选 0 张</span>
@@ -205,7 +192,6 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
                 </div>
             </div>
             
-            <!-- 上传区域 -->
             <div id="upload-area" class="upload-area" onclick="document.getElementById('file-input').click()">
                 <input type="file" id="file-input" multiple accept="image/*,video/*" style="display:none;" onchange="handleFileSelect(this.files)">
                 <div style="font-size: 14px; color: #666;">
@@ -214,10 +200,8 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
                 </div>
             </div>
             
-            <!-- 待上传文件列表 -->
             <div id="file-list" class="file-list"></div>
             
-            <!-- 上传按钮和进度条 (增加百分比显示) -->
             <div id="upload-controls" style="margin-top: 15px; display: none;">
                 <button class="btn primary" style="width: 100%;" onclick="startUpload()" id="upload-btn">开始上传</button>
                 <div class="upload-progress" id="upload-progress">
@@ -227,25 +211,23 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
             </div>
             
             <div style="margin: 20px 0; border-bottom: 1px solid #eee;"></div>
-            
             <div id="images-list" class="sg-img-grid"></div>
         </div>
     </div>
 </div>
 
-<!-- 隐藏的相册ID存储 -->
 <input type="hidden" id="current-album-id">
 
 <script>
 var selectedImgs = {};
-var pendingFiles = []; // 待上传的文件列表
+var pendingFiles = [];
 
 function createAlbum() {
     var name = document.getElementById('new-album-name').value;
     if(!name) { alert('请输入名称'); return; }
     var formData = new FormData();
     formData.append('name', name);
-    fetch('<?php echo $options->index; ?>/action/smart-gallery?do=create-album', { method: 'POST', body: formData }).then(() => location.reload());
+    fetch('<?php echo $options->index; ?>/action/smart-gallery?do=create-album', { method: 'POST', body: formData }).then(() => location.reload()).catch(err => alert('创建失败，请检查权限或路径'));
 }
 
 function openEditModal(album) {
@@ -294,49 +276,35 @@ function loadImages(id) {
         });
 }
 
-// 处理文件选择
 function handleFileSelect(files) {
     if (files.length === 0) return;
-    
-    // 添加到待上传列表
     for (var i = 0; i < files.length; i++) {
         pendingFiles.push(files[i]);
     }
-    
     updateFileList();
 }
 
-// 更新文件列表显示
 function updateFileList() {
     var listEl = document.getElementById('file-list');
     var controlsEl = document.getElementById('upload-controls');
-    
     if (pendingFiles.length === 0) {
         listEl.innerHTML = '';
         controlsEl.style.display = 'none';
         return;
     }
-    
     controlsEl.style.display = 'block';
-    
     var html = '';
     pendingFiles.forEach((file, index) => {
-        html += `<div class="file-item">
-            <span>${file.name} (${formatSize(file.size)})</span>
-            <button onclick="removeFile(${index})" style="background:none; border:none; color:#d9534f; cursor:pointer;">✕</button>
-        </div>`;
+        html += `<div class="file-item"><span>${file.name} (${formatSize(file.size)})</span><button onclick="removeFile(${index})" style="background:none; border:none; color:#d9534f; cursor:pointer;">✕</button></div>`;
     });
-    
     listEl.innerHTML = html;
 }
 
-// 移除文件
 function removeFile(index) {
     pendingFiles.splice(index, 1);
     updateFileList();
 }
 
-// 格式化文件大小
 function formatSize(bytes) {
     if (bytes === 0) return '0 B';
     var k = 1024;
@@ -345,13 +313,8 @@ function formatSize(bytes) {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
-// 核心修改：增加上传进度显示逻辑
 function startUpload() {
-    if (pendingFiles.length === 0) {
-        alert('请先选择文件');
-        return;
-    }
-    
+    if (pendingFiles.length === 0) { alert('请先选择文件'); return; }
     var albumId = document.getElementById('current-album-id').value;
     var uploadBtn = document.getElementById('upload-btn');
     var progressEl = document.getElementById('upload-progress');
@@ -366,13 +329,11 @@ function startUpload() {
     
     var formData = new FormData();
     formData.append('album_id', albumId);
-    
     pendingFiles.forEach((file, index) => {
         formData.append('files[]', file, file.name);
     });
     
     var xhr = new XMLHttpRequest();
-    
     xhr.upload.addEventListener('progress', function(e) {
         if (e.lengthComputable) {
             var percent = Math.round((e.loaded / e.total) * 100);
@@ -386,16 +347,11 @@ function startUpload() {
             try {
                 var response = JSON.parse(xhr.responseText);
                 if (response.status === 'success') {
-                    // 清空待上传列表
                     pendingFiles = [];
                     updateFileList();
-                    
-                    // 重置UI
                     uploadBtn.disabled = false;
                     uploadBtn.innerText = '开始上传';
                     progressEl.style.display = 'none';
-                    
-                    // 刷新图片列表
                     loadImages(albumId);
                 } else {
                     alert('上传失败: ' + (response.msg || '未知错误'));
@@ -413,47 +369,24 @@ function startUpload() {
             uploadBtn.innerText = '开始上传';
         }
     });
-    
-    xhr.addEventListener('error', function() {
-        alert('网络错误');
-        uploadBtn.disabled = false;
-        uploadBtn.innerText = '开始上传';
-    });
-    
+    xhr.addEventListener('error', function() { alert('网络错误'); uploadBtn.disabled = false; uploadBtn.innerText = '开始上传'; });
     xhr.open('POST', '<?php echo $options->index; ?>/action/smart-gallery?do=upload');
     xhr.send(formData);
 }
 
-// 拖拽上传支持
 var uploadArea = document.getElementById('upload-area');
-
-uploadArea.addEventListener('dragover', function(e) {
-    e.preventDefault();
-    uploadArea.classList.add('dragover');
-});
-
-uploadArea.addEventListener('dragleave', function(e) {
-    e.preventDefault();
-    uploadArea.classList.remove('dragover');
-});
-
+uploadArea.addEventListener('dragover', function(e) { e.preventDefault(); uploadArea.classList.add('dragover'); });
+uploadArea.addEventListener('dragleave', function(e) { e.preventDefault(); uploadArea.classList.remove('dragover'); });
 uploadArea.addEventListener('drop', function(e) {
     e.preventDefault();
     uploadArea.classList.remove('dragover');
-    
-    var files = e.dataTransfer.files;
-    if (files.length > 0) {
-        handleFileSelect(files);
-    }
+    if (e.dataTransfer.files.length > 0) handleFileSelect(e.dataTransfer.files);
 });
 
-// 修复点击冲突：toggleSelect 只绑定在遮罩层上
 function toggleSelect(el, event) {
-    // el 是 sg-img-item
     var id = el.getAttribute('data-id');
     var filename = el.getAttribute('data-filename');
     var albumId = el.getAttribute('data-album');
-    
     if (selectedImgs[id]) {
         delete selectedImgs[id];
         el.classList.remove('selected');
@@ -471,8 +404,7 @@ function updateCount() {
         countEl.style.display = 'inline';
         countEl.innerText = '已选 ' + count + ' 张';
     } else {
-        // 【修复】此处原本缺少单引号，导致JS解析错误
-        countEl.style.display = 'none';
+        countEl.style.display = 'none'; // 修复：此处原本缺少单引号，导致JS解析错误
     }
 }
 
@@ -484,47 +416,25 @@ function clearSelection() {
 
 function handleSetCover() {
     var ids = Object.keys(selectedImgs);
-    if(ids.length === 0) {
-        alert('请先勾选一张图片');
-        return;
-    }
-    if(ids.length > 1) {
-        alert('封面设置仅支持一张图片，请勿多选');
-        return;
-    }
-    
+    if(ids.length === 0) { alert('请先勾选一张图片'); return; }
+    if(ids.length > 1) { alert('封面设置仅支持一张图片，请勿多选'); return; }
     var imgData = selectedImgs[ids[0]];
     var formData = new FormData();
     formData.append('filename', imgData.filename);
     formData.append('album_id', imgData.albumId);
-    
     fetch('<?php echo $options->index; ?>/action/smart-gallery?do=set-cover', { method: 'POST', body: formData })
     .then(res => res.json())
     .then(d => { 
-        if(d.status === 'success') { 
-            alert('封面已更新'); 
-            location.reload();
-        } else {
-            alert('设置失败');
-        }
+        if(d.status === 'success') { alert('封面已更新'); location.reload(); } 
+        else alert('设置失败');
     });
 }
 
 function handleDelete() {
     var ids = Object.keys(selectedImgs);
-    if(ids.length === 0) {
-        alert('请先勾选图片');
-        return;
-    }
-    
-    if(!confirm('确定要删除选中的 ' + ids.length + ' 张图片吗？此操作不可恢复。')) {
-        return;
-    }
-    
-    var promises = ids.map(id => {
-        return fetch('<?php echo $options->index; ?>/action/smart-gallery?do=delete-img&id=' + id);
-    });
-    
+    if(ids.length === 0) { alert('请先勾选图片'); return; }
+    if(!confirm('确定要删除选中的 ' + ids.length + ' 张图片吗？此操作不可恢复。')) return;
+    var promises = ids.map(id => fetch('<?php echo $options->index; ?>/action/smart-gallery?do=delete-img&id=' + id));
     Promise.all(promises).then(() => {
         var albumId = document.getElementById('current-album-id').value;
         loadImages(albumId);
@@ -537,9 +447,7 @@ function deleteAlbum(id) {
     }
 }
 
-function closeModal(mid) { 
-    document.getElementById(mid).style.display = 'none'; 
-}
+function closeModal(mid) { document.getElementById(mid).style.display = 'none'; }
 
 document.querySelectorAll('.sg-modal-overlay').forEach(modal => {
     modal.addEventListener('click', function(e) { if (e.target === this) closeModal(this.id); });
