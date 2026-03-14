@@ -6,7 +6,7 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
  * 
  * @package Smart Gallery
  * @author 落花雨记
- * @version 1.1.0
+ * @version 1.1.1
  * @link https://www.luohuayu.cn
  */
 
@@ -101,7 +101,7 @@ class SmartGallery_Plugin implements Typecho_Plugin_Interface
 
         $openEffect = new Typecho_Widget_Helper_Form_Element_Select('openEffect', 
             array(
-                'slide' => '底部滑入 (经典)',
+                'slide' => '底部滑入 (手机经典)',
                 'fade' => '淡入淡出 (平滑)',
                 'rotate' => '转盘旋转 (创意)',
                 'flip' => '卡片翻转 (3D)',
@@ -127,14 +127,7 @@ class SmartGallery_Plugin implements Typecho_Plugin_Interface
     }
     
     private static function getEffectName($effect) {
-        $effects = array(
-            'slide' => '底部滑入',
-            'fade' => '淡入淡出',
-            'rotate' => '转盘旋转',
-            'flip' => '卡片翻转',
-            'stack' => '层叠推开',
-            'zoom' => '中心缩放'
-        );
+        $effects = array('slide' => '底部滑入', 'fade' => '淡入淡出', 'rotate' => '转盘旋转', 'flip' => '卡片翻转', 'stack' => '层叠推开', 'zoom' => '中心缩放');
         return isset($effects[$effect]) ? $effects[$effect] : '底部滑入';
     }
 
@@ -155,11 +148,7 @@ class SmartGallery_Plugin implements Typecho_Plugin_Interface
             $row = $db->fetchRow($db->select('value')->from($prefix . 'options')->where('name = ?', 'plugin:SmartGallery'));
             if ($row && isset($row['value']) && !empty($row['value'])) {
                 $data = self::safeUnserialize($row['value']);
-                if (is_array($data)) {
-                    foreach ($data as $key => $value) {
-                        if ($value !== null && $value !== '') $defaultConfig[$key] = $value;
-                    }
-                }
+                if (is_array($data)) { foreach ($data as $key => $value) { if ($value !== null && $value !== '') $defaultConfig[$key] = $value; } }
             }
         } catch (Exception $e) {}
         return $defaultConfig;
@@ -189,7 +178,7 @@ class SmartGallery_Plugin implements Typecho_Plugin_Interface
         $mobileCols = isset($pluginOptions['mobileCols']) ? intval($pluginOptions['mobileCols']) : 2;
         $openEffect = isset($pluginOptions['openEffect']) ? $pluginOptions['openEffect'] : 'slide';
 
-        // CSS部分 - 重写了关键帧动画
+        // CSS - 弹窗统一圆角
         $css = '<style>
             .sg-album-grid { display: grid; grid-gap: 25px; margin: 20px 0; }
             @media (min-width: 768px) { .sg-album-grid { grid-template-columns: repeat(' . $pcCols . ', 1fr); } }
@@ -222,7 +211,7 @@ class SmartGallery_Plugin implements Typecho_Plugin_Interface
                 overflow: hidden;
                 background: rgba(0,0,0,0);
                 transition: background 0.3s ease;
-                perspective: 1200px; /* 给翻转效果提供透视 */
+                perspective: 1200px;
             }
             .sg-modal.sg-active { 
                 display: flex; 
@@ -232,17 +221,31 @@ class SmartGallery_Plugin implements Typecho_Plugin_Interface
             }
             .sg-modal.sg-closing { background: rgba(0,0,0,0); }
             
-            /* 弹窗内容 - 初始状态 */
+            /* 弹窗内容 - 统一圆角 */
             .sg-modal-content { 
                 width: 88%; max-width: 880px; max-height: 82vh; 
-                background: #fff; border-radius: 10px; 
+                background: #fff; 
+                border-radius: 10px; /* 统一圆角 */
                 display: flex; flex-direction: column;
                 box-shadow: 0 25px 80px rgba(0,0,0,0.5);
                 will-change: transform, opacity;
                 transform-style: preserve-3d;
+                overflow: hidden; /* 确保子元素不超出圆角 */
             }
             
-            /* ========== 6种丝滑动画定义 ========== */
+            /* 弹窗头部 - 去掉直角，跟随父容器圆角 */
+            .sg-modal-header { 
+                color: #333; 
+                display: flex; justify-content: space-between; align-items: center; 
+                padding: 14px 18px; 
+                background: #fff; 
+                border-bottom: 1px solid #eee;
+                flex-shrink: 0;
+                border-radius: 10px 10px 0 0; /* 顶部圆角 */
+            }
+            .sg-modal-header h2 { margin: 0; font-size: 17px; }
+            
+            /* ========== 动画定义 ========== */
             
             /* 1. 底部滑入 */
             .sg-modal.sg-effect-slide.sg-active .sg-modal-content { animation: sg-slide-up 0.35s cubic-bezier(0.32, 0.72, 0, 1) forwards; }
@@ -281,9 +284,6 @@ class SmartGallery_Plugin implements Typecho_Plugin_Interface
             @keyframes sg-zoom-in { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
             @keyframes sg-zoom-out { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(0.8); } }
 
-            .sg-modal-header { color: #333; display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; background: #fff; border-bottom: 1px solid #eee; flex-shrink: 0; }
-            .sg-modal-header h2 { margin: 0; font-size: 17px; }
-            
             .sg-close-btn { width: 26px; height: 26px; background: url(https://www.luohuayu.cn/usr/uploads/2026/03/guanbi.png) no-repeat center center; background-size: contain; cursor: pointer; transition: transform 0.2s; display: block; border: none; outline: none; background-color: transparent; }
             .sg-close-btn:hover { transform: rotate(90deg); }
             
@@ -403,56 +403,21 @@ function sgOpenModal(id) {
     if (modal) {
         if (sgClosingTimeout) { clearTimeout(sgClosingTimeout); sgClosingTimeout = null; }
         
-        // 1. 重置所有类名
         modal.classList.remove('sg-active', 'sg-closing', 'sg-effect-slide', 'sg-effect-fade', 'sg-effect-rotate', 'sg-effect-flip', 'sg-effect-stack', 'sg-effect-zoom');
-        
-        // 2. 添加当前选择的动画效果类
         modal.classList.add('sg-effect-' + sgOpenEffect);
-        
-        // 3. 强制重绘
         void modal.offsetWidth;
-        
-        // 4. 激活弹窗
         modal.classList.add('sg-active');
         document.body.style.overflow = "hidden";
         
         var body = document.getElementById("sg-body-" + id);
-        if (!body.querySelector(".sg-images-grid") && !body.querySelector(".sg-images-masonry") && !body.querySelector(".sg-password-box")) {
-            showPasswordBox(id);
-        }
+        if (!body.querySelector(".sg-images-grid") && !body.querySelector(".sg-images-masonry") && !body.querySelector(".sg-password-box")) { showPasswordBox(id); }
         setTimeout(function() { sgInitLightbox(id); }, 100);
     }
 }
 
-function sgInitLightbox(albumId) {
-    var body = document.getElementById("sg-body-" + albumId);
-    if (!body) return;
-    var links = body.querySelectorAll('a[data-fancybox]');
-    links.forEach(function(link) {
-        link.removeEventListener('click', sgHandleLightboxClick);
-        link.addEventListener('click', sgHandleLightboxClick);
-    });
-}
-
-function sgHandleLightboxClick(e) {
-    e.preventDefault(); var link = e.currentTarget; var href = link.getAttribute('href'); var caption = link.getAttribute('data-caption') || '';
-    var albumId = sgCurrentAlbumId; var body = document.getElementById("sg-body-" + albumId); var links = body.querySelectorAll('a[data-fancybox]');
-    var currentIndex = 0; links.forEach(function(l, i) { if (l === link) currentIndex = i; });
-    sgCreateLightbox(href, caption, links, currentIndex);
-}
-
-function sgCreateLightbox(src, caption, links, currentIndex) {
-    var existing = document.getElementById('sg-custom-lightbox'); if (existing) existing.remove();
-    var lightbox = document.createElement('div'); lightbox.id = 'sg-custom-lightbox';
-    lightbox.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.95);z-index:99998;display:flex;align-items:center;justify-content:center;';
-    lightbox.innerHTML = '<button onclick="sgCloseLightbox()" style="position:absolute;top:20px;right:20px;width:40px;height:40px;background:rgba(255,255,255,0.1);border:none;border-radius:50%;cursor:pointer;color:#fff;font-size:24px;z-index:99999;">&times;</button><button onclick="sgPrevImage(event)" style="position:absolute;left:20px;top:50%;transform:translateY(-50%);width:50px;height:50px;background:rgba(255,255,255,0.1);border:none;border-radius:50%;cursor:pointer;color:#fff;font-size:20px;z-index:99999;">&#10094;</button><button onclick="sgNextImage(event)" style="position:absolute;right:20px;top:50%;transform:translateY(-50%);width:50px;height:50px;background:rgba(255,255,255,0.1);border:none;border-radius:50%;cursor:pointer;color:#fff;font-size:20px;z-index:99999;">&#10095;</button><img id="sg-lightbox-img" src="' + src + '" style="max-width:90%;max-height:80vh;object-fit:contain;">';
-    document.body.appendChild(lightbox); lightbox.dataset.index = currentIndex;
-    lightbox.dataset.links = JSON.stringify(Array.from(links).map(function(l) { return { src: l.getAttribute('href'), caption: l.getAttribute('data-caption') || '' }; }));
-    sgShowLightboxDesc(caption);
-    lightbox.addEventListener('click', function(e) { if (e.target === lightbox) sgCloseLightbox(); });
-    document.addEventListener('keydown', sgHandleKeydown);
-}
-
+function sgInitLightbox(albumId) { var body = document.getElementById("sg-body-" + albumId); if (!body) return; var links = body.querySelectorAll('a[data-fancybox]'); links.forEach(function(link) { link.removeEventListener('click', sgHandleLightboxClick); link.addEventListener('click', sgHandleLightboxClick); }); }
+function sgHandleLightboxClick(e) { e.preventDefault(); var link = e.currentTarget; var href = link.getAttribute('href'); var caption = link.getAttribute('data-caption') || ''; var albumId = sgCurrentAlbumId; var body = document.getElementById("sg-body-" + albumId); var links = body.querySelectorAll('a[data-fancybox]'); var currentIndex = 0; links.forEach(function(l, i) { if (l === link) currentIndex = i; }); sgCreateLightbox(href, caption, links, currentIndex); }
+function sgCreateLightbox(src, caption, links, currentIndex) { var existing = document.getElementById('sg-custom-lightbox'); if (existing) existing.remove(); var lightbox = document.createElement('div'); lightbox.id = 'sg-custom-lightbox'; lightbox.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.95);z-index:99998;display:flex;align-items:center;justify-content:center;'; lightbox.innerHTML = '<button onclick="sgCloseLightbox()" style="position:absolute;top:20px;right:20px;width:40px;height:40px;background:rgba(255,255,255,0.1);border:none;border-radius:50%;cursor:pointer;color:#fff;font-size:24px;z-index:99999;">&times;</button><button onclick="sgPrevImage(event)" style="position:absolute;left:20px;top:50%;transform:translateY(-50%);width:50px;height:50px;background:rgba(255,255,255,0.1);border:none;border-radius:50%;cursor:pointer;color:#fff;font-size:20px;z-index:99999;">&#10094;</button><button onclick="sgNextImage(event)" style="position:absolute;right:20px;top:50%;transform:translateY(-50%);width:50px;height:50px;background:rgba(255,255,255,0.1);border:none;border-radius:50%;cursor:pointer;color:#fff;font-size:20px;z-index:99999;">&#10095;</button><img id="sg-lightbox-img" src="' + src + '" style="max-width:90%;max-height:80vh;object-fit:contain;">'; document.body.appendChild(lightbox); lightbox.dataset.index = currentIndex; lightbox.dataset.links = JSON.stringify(Array.from(links).map(function(l) { return { src: l.getAttribute('href'), caption: l.getAttribute('data-caption') || '' }; })); sgShowLightboxDesc(caption); lightbox.addEventListener('click', function(e) { if (e.target === lightbox) sgCloseLightbox(); }); document.addEventListener('keydown', sgHandleKeydown); }
 function sgCloseLightbox() { var lightbox = document.getElementById('sg-custom-lightbox'); if (lightbox) lightbox.remove(); var descEl = document.getElementById("sg-lightbox-desc"); if (descEl) descEl.style.display = "none"; document.removeEventListener('keydown', sgHandleKeydown); }
 function sgHandleKeydown(e) { if (e.key === 'Escape') sgCloseLightbox(); else if (e.key === 'ArrowLeft') sgPrevImage(e); else if (e.key === 'ArrowRight') sgNextImage(e); }
 function sgPrevImage(e) { if(e) e.stopPropagation(); var lightbox = document.getElementById('sg-custom-lightbox'); if (!lightbox) return; var links = JSON.parse(lightbox.dataset.links); var currentIndex = parseInt(lightbox.dataset.index); currentIndex = (currentIndex - 1 + links.length) % links.length; sgUpdateLightboxImage(links[currentIndex], currentIndex); }
@@ -467,19 +432,12 @@ function sgCloseModal(id, e) {
     if (modal && modal.classList.contains('sg-active')) { 
         modal.classList.remove('sg-active');
         modal.classList.add('sg-closing');
-        
         sgCloseLightbox(); var descEl = document.getElementById("sg-lightbox-desc"); if (descEl) descEl.style.display = "none";
-        
-        sgClosingTimeout = setTimeout(function() {
-            modal.classList.remove('sg-closing');
-            modal.classList.remove('sg-effect-' + sgOpenEffect);
-            document.body.style.overflow = "";
-            sgClosingTimeout = null;
-        }, 400);
+        sgClosingTimeout = setTimeout(function() { modal.classList.remove('sg-closing'); modal.classList.remove('sg-effect-' + sgOpenEffect); document.body.style.overflow = ""; sgClosingTimeout = null; }, 400);
     }
 }
 
-document.addEventListener("click", function(e){ if(e.target.classList.contains("sg-modal")) { var id = e.target.id.replace('sg-album-', ''); sgCloseModal(id, e); } });
+document.addEventListener("click", function(e) { if(e.target.classList.contains("sg-modal")) { var id = e.target.id.replace('sg-album-', ''); sgCloseModal(id, e); } });
 
 function checkGalleryPwd(id, evt) {
     if(evt && evt.preventDefault) evt.preventDefault(); var pwdInput = document.getElementById("sg_pwd_" + id); var msgDiv = document.getElementById("sg_msg_" + id); var pwd = pwdInput.value; msgDiv.innerText = "验证中...";
