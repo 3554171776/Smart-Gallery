@@ -9,9 +9,12 @@ https://www.luohuayu.cn/photo.html
 BUG 反馈
  
 邮箱：3554171776@qq.com
+
 如果插件对你有帮助，记得点亮小星星 ✨
  
- 
+插件使用方法：
+
+创建新页面输入短代码：[gallery]
  
 📋 更新日志
 
