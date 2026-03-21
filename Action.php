@@ -1,6 +1,4 @@
-<?php
-if (!defined('__TYPECHO_ROOT_DIR__')) exit;
-
+<?php if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 use Typecho\Db;
 use Typecho\Widget;
 use Widget\Base\Options;
@@ -19,33 +17,30 @@ class SmartGallery_Action extends Widget implements ActionInterface
         $this->db = Db::get();
         $this->options = Options::alloc();
         $this->prefix = $this->db->getPrefix();
-        
         $this->initPDO();
     }
-    
-    private function initPDO() {
+
+    private function initPDO()
+    {
         try {
             $adapter = $this->db->getAdapter();
             $reflection = new \ReflectionClass($adapter);
-            
             if ($reflection->hasProperty('_connection')) {
                 $property = $reflection->getProperty('_connection');
                 $property->setAccessible(true);
                 $connection = $property->getValue($adapter);
-                
                 if ($connection instanceof PDO) {
                     $this->pdo = $connection;
                     return;
                 }
             }
         } catch (\Exception $e) {}
-        
+
         try {
             $host = defined('TYPECHO_DB_HOST') ? TYPECHO_DB_HOST : 'localhost';
             $user = defined('TYPECHO_DB_USER') ? TYPECHO_DB_USER : '';
             $pass = defined('TYPECHO_DB_PASSWD') ? TYPECHO_DB_PASSWD : '';
             $name = defined('TYPECHO_DB_NAME') ? TYPECHO_DB_NAME : '';
-            
             if ($user && $name) {
                 $dsn = "mysql:host={$host};dbname={$name};charset=utf8mb4";
                 $this->pdo = new PDO($dsn, $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
@@ -65,23 +60,25 @@ class SmartGallery_Action extends Widget implements ActionInterface
         $this->on($this->request->is('do=check-pwd'))->checkPassword();
         $this->on($this->request->is('do=scan-local'))->scanLocalImages();
         $this->on($this->request->is('do=insert-local'))->insertLocalImages();
-        
         $this->on($this->request->is('do=get-album-info'))->getAlbumInfo();
         $this->on($this->request->is('do=update-album-layout'))->updateAlbumLayout();
         $this->on($this->request->is('do=save-album-order'))->saveAlbumOrder();
         $this->on($this->request->is('do=save-img-order'))->saveImageOrder();
         $this->on($this->request->is('do=save-img-desc'))->saveImageDesc();
         $this->on($this->request->is('do=move-images'))->moveImages();
+        $this->on($this->request->is('do=insert-external'))->insertExternalLinks();
     }
 
-    private function goBack() {
+    private function goBack()
+    {
         $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? "https" : "http";
         $host = $_SERVER['HTTP_HOST'];
         header("Location: {$protocol}://{$host}/admin/extending.php?panel=SmartGallery/Panel.php");
         exit;
     }
 
-    private function safeUnserialize($value) {
+    private function safeUnserialize($value)
+    {
         if (empty($value) || !is_string($value)) return null;
         $data = @unserialize($value);
         if (is_array($data)) return $data;
@@ -90,16 +87,16 @@ class SmartGallery_Action extends Widget implements ActionInterface
         return null;
     }
 
-    private function getRealConfig() {
+    private function getRealConfig()
+    {
         $defaultConfig = [
-            'pcCols' => '4', 
+            'pcCols' => '4',
             'mobileCols' => '2',
-            'webp' => '0', 
+            'webp' => '0',
             'imgQuality' => '80'
         ];
-        
         $savedConfig = null;
-        
+
         if ($this->pdo) {
             try {
                 $stmt = $this->pdo->query("SELECT value FROM {$this->prefix}options WHERE name = 'plugin:SmartGallery' LIMIT 1");
@@ -109,20 +106,20 @@ class SmartGallery_Action extends Widget implements ActionInterface
                 }
             } catch (\Exception $e) {}
         }
-        
+
         if ($savedConfig === null) {
             try {
                 $row = $this->db->fetchRow(
                     $this->db->select('value')
-                    ->from('table.options')
-                    ->where('name = ?', 'plugin:SmartGallery')
+                        ->from('table.options')
+                        ->where('name = ?', 'plugin:SmartGallery')
                 );
                 if ($row && isset($row['value'])) {
                     $savedConfig = $this->safeUnserialize($row['value']);
                 }
             } catch (\Exception $e) {}
         }
-        
+
         if ($savedConfig !== null && is_array($savedConfig)) {
             foreach ($savedConfig as $key => $value) {
                 if ($value !== null && $value !== '') {
@@ -135,7 +132,12 @@ class SmartGallery_Action extends Widget implements ActionInterface
 
     private function isLocalImage($filename)
     {
-        return (strpos($filename, 'SmartGallery/') !== 0);
+        return (strpos($filename, 'SmartGallery/') !== 0) && (strpos($filename, 'http://') !== 0) && (strpos($filename, 'https://') !== 0);
+    }
+
+    private function isExternalImage($filename)
+    {
+        return (strpos($filename, 'http://') === 0) || (strpos($filename, 'https://') === 0);
     }
 
     public function createAlbum()
@@ -143,8 +145,10 @@ class SmartGallery_Action extends Widget implements ActionInterface
         $name = $this->request->get('name');
         if (empty($name)) throw new \Typecho\Plugin\Exception('名称不能为空');
         $data = array(
-            'name' => $name, 'description' => $this->request->get('description', ''),
-            'cover' => $this->request->get('cover', ''), 'password' => $this->request->get('password', ''),
+            'name' => $name,
+            'description' => $this->request->get('description', ''),
+            'cover' => $this->request->get('cover', ''),
+            'password' => $this->request->get('password', ''),
             'created' => time()
         );
         $this->db->query($this->db->insert($this->prefix . 'smart_gallery_albums')->rows($data));
@@ -156,8 +160,10 @@ class SmartGallery_Action extends Widget implements ActionInterface
         $id = $this->request->get('id');
         if (empty($id)) throw new \Typecho\Plugin\Exception('ID错误');
         $data = array(
-            'name' => $this->request->get('name'), 'description' => $this->request->get('description', ''),
-            'cover' => $this->request->get('cover', ''), 'password' => $this->request->get('password', '')
+            'name' => $this->request->get('name'),
+            'description' => $this->request->get('description', ''),
+            'cover' => $this->request->get('cover', ''),
+            'password' => $this->request->get('password', '')
         );
         $this->db->query($this->db->update($this->prefix . 'smart_gallery_albums')->rows($data)->where('id = ?', $id));
         $this->goBack();
@@ -167,10 +173,11 @@ class SmartGallery_Action extends Widget implements ActionInterface
     {
         $id = $this->request->get('id');
         if(empty($id)) throw new \Typecho\Plugin\Exception('ID无效');
+        
         $images = $this->db->fetchAll($this->db->select('filename')->from($this->prefix . 'smart_gallery_images')->where('album_id = ?', $id));
         
         foreach ($images as $img) {
-            if (!$this->isLocalImage($img['filename'])) {
+            if (!$this->isLocalImage($img['filename']) && !$this->isExternalImage($img['filename'])) {
                 $filePath = __TYPECHO_ROOT_DIR__ . '/usr/uploads/' . $img['filename'];
                 if (file_exists($filePath)) {
                     @unlink($filePath);
@@ -192,10 +199,14 @@ class SmartGallery_Action extends Widget implements ActionInterface
         $last = strtolower(substr($val, -1));
         $num = (int)$val;
         switch ($last) {
-            case 'g': return $num * 1024 * 1024 * 1024;
-            case 'm': return $num * 1024 * 1024;
-            case 'k': return $num * 1024;
-            default: return (int)$val;
+            case 'g':
+                return $num * 1024 * 1024 * 1024;
+            case 'm':
+                return $num * 1024 * 1024;
+            case 'k':
+                return $num * 1024;
+            default:
+                return (int)$val;
         }
     }
 
@@ -203,9 +214,9 @@ class SmartGallery_Action extends Widget implements ActionInterface
     {
         $bytesPerPixel = 6.0;
         $estimated = (int)ceil($width * $height * $bytesPerPixel * $safetyFactor);
-
         $usage = function_exists('memory_get_usage') ? memory_get_usage(true) : 0;
         $limit = $this->getPhpMemoryLimitBytes();
+
         if ($limit > 0 && ($usage + $estimated) < $limit) {
             return true;
         }
@@ -259,6 +270,7 @@ class SmartGallery_Action extends Widget implements ActionInterface
 
         $srcW = imagesx($sourceImage);
         $srcH = imagesy($sourceImage);
+
         $maxSide = 1080;
         $longer = max($srcW, $srcH);
         $capScale = ($longer > $maxSide) ? ($maxSide / $longer) : 1.0;
@@ -295,11 +307,9 @@ class SmartGallery_Action extends Widget implements ActionInterface
         }
 
         $outputPath = $filePath . '.webp';
-
         if ($imageInfo[2] === IMAGETYPE_PNG) {
             imagesavealpha($sourceImage, true);
         }
-
         $success = imagewebp($sourceImage, $outputPath, $quality);
         imagedestroy($sourceImage);
 
@@ -328,21 +338,19 @@ class SmartGallery_Action extends Widget implements ActionInterface
 
         $config = $this->getRealConfig();
         $useWebp = (isset($config['webp']) && $config['webp'] == '1');
-        $imgQuality = isset($config['imgQuality']) ? intval($config['imgQuality']) : 80; 
-        
+        $imgQuality = isset($config['imgQuality']) ? intval($config['imgQuality']) : 80;
         if ($imgQuality < 0) $imgQuality = 0;
         if ($imgQuality > 100) $imgQuality = 100;
 
         $count = 0;
         $files = $_FILES['files'];
         $fileCount = count($files['name']);
-        
+
         for ($i = 0; $i < $fileCount; $i++) {
             if ($files['error'][$i] === 0) {
                 $tmpName = $files['tmp_name'][$i];
                 $ext = strtolower(pathinfo($files['name'][$i], PATHINFO_EXTENSION));
                 $type = 'image';
-                
                 $timeStamp = time() . rand(100, 999);
 
                 if (in_array($ext, ['mp4', 'webm', 'mov', 'avi', 'mkv'])) {
@@ -352,7 +360,7 @@ class SmartGallery_Action extends Widget implements ActionInterface
                 } else {
                     $finalPath = $tmpName;
                     $finalExt = $ext;
-                    
+
                     if ($useWebp) {
                         try {
                             $result = $this->processWebPCompression($tmpName, $imgQuality);
@@ -362,13 +370,13 @@ class SmartGallery_Action extends Widget implements ActionInterface
                             }
                         } catch (\Exception $e) {}
                     }
-                    
+
                     if ($finalExt === 'webp') {
                         $filename = "q{$imgQuality}_{$timeStamp}.webp";
                     } else {
                         $filename = "raw_{$timeStamp}." . $finalExt;
                     }
-                    
+
                     if ($finalPath !== $tmpName) {
                         rename($finalPath, $uploadDir . $filename);
                     } else {
@@ -377,15 +385,59 @@ class SmartGallery_Action extends Widget implements ActionInterface
                 }
 
                 $dbFilename = 'SmartGallery/' . $dateDir . '/' . $filename;
-                
                 $this->db->query($this->db->insert($this->prefix . 'smart_gallery_images')->rows(array(
-                    'album_id' => $albumId, 'filename' => $dbFilename,
-                    'type'     => $type, 'created'  => time()
+                    'album_id' => $albumId,
+                    'filename' => $dbFilename,
+                    'type' => $type,
+                    'created' => time()
                 )));
                 $count++;
             }
         }
+        echo json_encode(['status' => 'success', 'count' => $count]);
+    }
+
+    public function insertExternalLinks()
+    {
+        if (session_status() == PHP_SESSION_NONE) session_start();
         
+        $json = file_get_contents('php://input');
+        $data = json_decode($json, true);
+        
+        $albumId = isset($data['album_id']) ? intval($data['album_id']) : 0;
+        $links = isset($data['links']) ? $data['links'] : [];
+        
+        if (empty($albumId)) {
+            die(json_encode(['status' => 'error', 'msg' => '未指定相册']));
+        }
+        
+        if (empty($links) || !is_array($links)) {
+            die(json_encode(['status' => 'error', 'msg' => '请输入有效的链接']));
+        }
+        
+        $count = 0;
+        foreach ($links as $link) {
+            $link = trim($link);
+            if (empty($link)) continue;
+            
+            // 判断是图片还是视频
+            $type = 'image';
+            $videoExts = ['mp4', 'webm', 'mov', 'avi', 'mkv'];
+            $ext = strtolower(pathinfo(parse_url($link, PHP_URL_PATH), PATHINFO_EXTENSION));
+            if (in_array($ext, $videoExts)) {
+                $type = 'video';
+            }
+            
+            $this->db->query($this->db->insert($this->prefix . 'smart_gallery_images')->rows(array(
+                'album_id' => $albumId,
+                'filename' => $link,
+                'type' => $type,
+                'created' => time()
+            )));
+            $count++;
+        }
+        
+        header('Content-Type: application/json');
         echo json_encode(['status' => 'success', 'count' => $count]);
     }
 
@@ -396,6 +448,7 @@ class SmartGallery_Action extends Widget implements ActionInterface
         
         foreach ($images as &$img) {
             $img['isLocal'] = $this->isLocalImage($img['filename']);
+            $img['isExternal'] = $this->isExternalImage($img['filename']);
         }
         
         header('Content-Type: application/json');
@@ -415,18 +468,20 @@ class SmartGallery_Action extends Widget implements ActionInterface
     {
         $id = $this->request->get('id');
         $image = $this->db->fetchRow($this->db->select('filename')->from($this->prefix . 'smart_gallery_images')->where('id = ?', $id));
+        
         if ($image) {
             $isLocal = $this->isLocalImage($image['filename']);
+            $isExternal = $this->isExternalImage($image['filename']);
             
-            if (!$isLocal) {
+            if (!$isLocal && !$isExternal) {
                 $filePath = __TYPECHO_ROOT_DIR__ . '/usr/uploads/' . $image['filename'];
                 if (file_exists($filePath)) {
                     @unlink($filePath);
                 }
             }
-            
             $this->db->query($this->db->delete($this->prefix . 'smart_gallery_images')->where('id = ?', $id));
         }
+        
         header('Content-Type: application/json');
         echo json_encode(['status' => 'success']);
     }
@@ -440,11 +495,10 @@ class SmartGallery_Action extends Widget implements ActionInterface
         
         $albumId = isset($data['album_id']) ? $data['album_id'] : $this->request->get('album_id');
         $password = isset($data['password']) ? $data['password'] : $this->request->get('password');
-
+        
         $album = $this->db->fetchRow($this->db->select('password')->from($this->prefix . 'smart_gallery_albums')->where('id = ?', $albumId));
         
         header('Content-Type: application/json');
-        
         if ($album && $album['password'] === $password) {
             $_SESSION['sg_unlocked_'.$albumId] = true;
             echo json_encode(['status' => 'success']);
@@ -463,8 +517,8 @@ class SmartGallery_Action extends Widget implements ActionInterface
         
         $folders = [];
         $images = [];
-        
         $currentPath = $uploadBase . $dir;
+        
         if (!is_dir($currentPath)) {
             $currentPath = $uploadBase;
             $dir = '';
@@ -474,7 +528,6 @@ class SmartGallery_Action extends Widget implements ActionInterface
         if ($items) {
             foreach ($items as $item) {
                 if ($item === '.' || $item === '..') continue;
-                
                 $fullPath = $currentPath . '/' . $item;
                 $relPath = ($dir ? $dir . '/' : '') . $item;
                 
@@ -486,7 +539,6 @@ class SmartGallery_Action extends Widget implements ActionInterface
                     ];
                 } elseif (is_file($fullPath)) {
                     $ext = strtolower(pathinfo($item, PATHINFO_EXTENSION));
-                    
                     $imgExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'];
                     $videoExts = ['mp4', 'webm', 'mov', 'avi', 'mkv'];
                     
@@ -511,8 +563,12 @@ class SmartGallery_Action extends Widget implements ActionInterface
             }
         }
         
-        usort($folders, function($a, $b) { return strcasecmp($a['name'], $b['name']); });
-        usort($images, function($a, $b) { return strcasecmp($a['name'], $b['name']); });
+        usort($folders, function($a, $b) {
+            return strcasecmp($a['name'], $b['name']);
+        });
+        usort($images, function($a, $b) {
+            return strcasecmp($a['name'], $b['name']);
+        });
         
         header('Content-Type: application/json');
         echo json_encode([
@@ -528,8 +584,8 @@ class SmartGallery_Action extends Widget implements ActionInterface
         if (session_status() == PHP_SESSION_NONE) session_start();
         
         $albumId = $this->request->get('album_id');
-        
         $paths = $this->request->get('paths');
+        
         if (empty($paths)) {
             $json = file_get_contents('php://input');
             $data = json_decode($json, true);
@@ -537,9 +593,11 @@ class SmartGallery_Action extends Widget implements ActionInterface
                 $paths = $data['paths'];
             }
         }
+        
         if (empty($paths)) {
             $paths = isset($_GET['paths']) ? $_GET['paths'] : (isset($_POST['paths']) ? $_POST['paths'] : []);
         }
+        
         if (!is_array($paths)) {
             $paths = [$paths];
         }
@@ -547,6 +605,7 @@ class SmartGallery_Action extends Widget implements ActionInterface
         if (empty($albumId)) {
             die(json_encode(['status' => 'error', 'msg' => '未指定相册']));
         }
+        
         if (empty($paths)) {
             die(json_encode(['status' => 'error', 'msg' => '请选择图片']));
         }
@@ -564,10 +623,10 @@ class SmartGallery_Action extends Widget implements ActionInterface
             $type = in_array($ext, $videoExts) ? 'video' : 'image';
             
             $this->db->query($this->db->insert($this->prefix . 'smart_gallery_images')->rows(array(
-                'album_id' => $albumId, 
+                'album_id' => $albumId,
                 'filename' => $path,
-                'type'     => $type, 
-                'created'  => time()
+                'type' => $type,
+                'created' => time()
             )));
             $count++;
         }
@@ -575,11 +634,12 @@ class SmartGallery_Action extends Widget implements ActionInterface
         header('Content-Type: application/json');
         echo json_encode(['status' => 'success', 'count' => $count]);
     }
-    
+
     public function getAlbumInfo()
     {
         $albumId = $this->request->get('album_id');
         $album = $this->db->fetchRow($this->db->select()->from($this->prefix . 'smart_gallery_albums')->where('id = ?', $albumId));
+        
         header('Content-Type: application/json');
         if ($album) {
             echo json_encode([
@@ -591,7 +651,7 @@ class SmartGallery_Action extends Widget implements ActionInterface
             echo json_encode(['status' => 'error']);
         }
     }
-    
+
     public function updateAlbumLayout()
     {
         $id = $this->request->get('id');
@@ -602,10 +662,11 @@ class SmartGallery_Action extends Widget implements ActionInterface
         }
         
         $this->db->query($this->db->update($this->prefix . 'smart_gallery_albums')->rows(['layout' => $layout])->where('id = ?', $id));
+        
         header('Content-Type: application/json');
         echo json_encode(['status' => 'success']);
     }
-    
+
     public function saveAlbumOrder()
     {
         $json = file_get_contents('php://input');
@@ -618,10 +679,11 @@ class SmartGallery_Action extends Widget implements ActionInterface
                 }
             }
         }
+        
         header('Content-Type: application/json');
         echo json_encode(['status' => 'success']);
     }
-    
+
     public function saveImageOrder()
     {
         $json = file_get_contents('php://input');
@@ -634,10 +696,11 @@ class SmartGallery_Action extends Widget implements ActionInterface
                 }
             }
         }
+        
         header('Content-Type: application/json');
         echo json_encode(['status' => 'success']);
     }
-    
+
     public function saveImageDesc()
     {
         $json = file_get_contents('php://input');
@@ -646,10 +709,11 @@ class SmartGallery_Action extends Widget implements ActionInterface
         if (isset($data['id']) && isset($data['description'])) {
             $this->db->query($this->db->update($this->prefix . 'smart_gallery_images')->rows(['description' => $data['description']])->where('id = ?', $data['id']));
         }
+        
         header('Content-Type: application/json');
         echo json_encode(['status' => 'success']);
     }
-    
+
     public function moveImages()
     {
         $json = file_get_contents('php://input');
