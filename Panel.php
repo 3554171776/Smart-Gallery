@@ -1,20 +1,39 @@
-<?php if (!defined('__TYPECHO_ROOT_DIR__')) exit;
+<?php
+if (!defined('__TYPECHO_ROOT_DIR__')) {
+    exit;
+}
+
 include 'header.php';
 include 'menu.php';
 
+// 获取数据库实例
 $db = Typecho_Db::get();
 $prefix = $db->getPrefix();
 $options = Typecho_Widget::widget('Widget_Options');
 
-$albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->order('sort_order', Typecho_Db::SORT_ASC)->order('created', Typecho_Db::SORT_DESC));
-?>
-<style>
+// 查询相册列表
+$albums = $db->fetchAll(
+    $db->select()
+        ->from($prefix . 'smart_gallery_albums')
+        ->order('sort_order', Typecho_Db::SORT_ASC)
+        ->order('created', Typecho_Db::SORT_DESC)
+);
+
+/**
+ * 渲染页面样式
+ */
+function renderPanelStyles()
+{
+    echo '<style>
+/* ========== 卡片网格 ========== */
 .sg-card-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     gap: 20px;
     margin-top: 20px;
 }
+
+/* ========== 相册卡片 ========== */
 .sg-card {
     background: #fff;
     border-radius: 8px;
@@ -24,9 +43,7 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
     border: 1px solid #eaeaea;
     cursor: grab;
 }
-.sg-card:active {
-    cursor: grabbing;
-}
+.sg-card:active { cursor: grabbing; }
 .sg-card.dragging {
     opacity: 0.5;
     transform: scale(1.02);
@@ -40,15 +57,16 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
     transform: translateY(-3px);
     box-shadow: 0 5px 15px rgba(0,0,0,0.1);
 }
+
 .sg-card-cover {
     width: 100%;
     height: 180px;
     object-fit: cover;
     background: #f5f5f5;
 }
-.sg-card-body {
-    padding: 15px;
-}
+
+.sg-card-body { padding: 15px; }
+
 .sg-card-title {
     font-size: 16px;
     font-weight: bold;
@@ -58,11 +76,13 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
     gap: 8px;
     flex-wrap: wrap;
 }
+
 .sg-card-meta {
     font-size: 13px;
     color: #999;
     margin-bottom: 5px;
 }
+
 .sg-card-lock {
     background: #f0ad4e;
     color: #fff;
@@ -70,6 +90,7 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
     padding: 2px 6px;
     border-radius: 3px;
 }
+
 .sg-card-layout {
     background: #467B96;
     color: #fff;
@@ -77,9 +98,8 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
     padding: 2px 6px;
     border-radius: 3px;
 }
-.sg-card-layout.masonry {
-    background: #e65100;
-}
+.sg-card-layout.masonry { background: #e65100; }
+
 .sg-card-actions {
     display: flex;
     border-top: 1px solid #f0f0f0;
@@ -94,16 +114,11 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
     color: #666;
     transition: background 0.2s;
 }
-.sg-card-actions button:hover {
-    background: #f9f9f9;
-}
-.sg-card-actions button.primary {
-    color: #467B96;
-    font-weight: bold;
-}
-.sg-card-actions button.warn {
-    color: #d9534f;
-}
+.sg-card-actions button:hover { background: #f9f9f9; }
+.sg-card-actions button.primary { color: #467B96; font-weight: bold; }
+.sg-card-actions button.warn { color: #d9534f; }
+
+/* ========== 创建框 ========== */
 .sg-create-box {
     background: #fff;
     padding: 20px;
@@ -126,6 +141,8 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
     flex-shrink: 0;
     white-space: nowrap;
 }
+
+/* ========== 弹窗基础 ========== */
 .sg-modal-overlay {
     display: none;
     position: fixed;
@@ -138,6 +155,7 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
     align-items: center;
     justify-content: center;
 }
+
 .sg-modal-content {
     background: #fff;
     border-radius: 8px;
@@ -146,6 +164,7 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
     max-height: 85vh;
     overflow-y: auto;
 }
+
 .sg-modal-header {
     padding: 15px 20px;
     border-bottom: 1px solid #eee;
@@ -153,32 +172,28 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
     justify-content: space-between;
     align-items: center;
 }
-.sg-modal-header h3 {
-    margin: 0;
-    font-size: 18px;
-}
-.sg-modal-body {
-    padding: 20px;
-}
+.sg-modal-header h3 { margin: 0; font-size: 18px; }
+.sg-modal-body { padding: 20px; }
+
+/* ========== 图片网格 ========== */
 .sg-img-grid {
     display: grid;
     grid-template-columns: repeat(6, 1fr);
     gap: 10px;
 }
 @media (max-width: 767px) {
-    .sg-img-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
+    .sg-img-grid { grid-template-columns: repeat(2, 1fr); }
 }
+
 .sg-preview-masonry {
     column-count: 6;
     column-gap: 15px;
 }
 @media (max-width: 767px) {
-    .sg-preview-masonry {
-        column-count: 2;
-    }
+    .sg-preview-masonry { column-count: 2; }
 }
+
+/* ========== 图片项 ========== */
 .sg-img-item {
     position: relative;
     border: 1px solid #eee;
@@ -194,26 +209,27 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
     aspect-ratio: auto;
     margin-bottom: 15px;
 }
-.sg-img-item:active {
-    cursor: grabbing;
-}
+.sg-img-item:active { cursor: grabbing; }
 .sg-img-item.dragging {
     opacity: 0.5;
     transform: scale(1.05);
 }
-.sg-img-item.drag-over {
-    border: 2px dashed #467B96;
-}
-.sg-img-box-wrap img, .sg-img-box-wrap video {
+.sg-img-item.drag-over { border: 2px dashed #467B96; }
+
+.sg-img-box-wrap img,
+.sg-img-box-wrap video {
     width: 100%;
     height: 100%;
     object-fit: contain;
     display: block;
 }
-.sg-preview-masonry .sg-img-box-wrap img, .sg-preview-masonry .sg-img-box-wrap video {
+.sg-preview-masonry .sg-img-box-wrap img,
+.sg-preview-masonry .sg-img-box-wrap video {
     height: auto;
     object-fit: cover;
 }
+
+/* ========== 徽章 ========== */
 .sg-video-badge {
     position: absolute;
     bottom: 8px;
@@ -228,6 +244,7 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
     gap: 4px;
     pointer-events: none;
 }
+
 .sg-local-badge {
     position: absolute;
     top: 8px;
@@ -241,6 +258,7 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
     pointer-events: none;
     z-index: 2;
 }
+
 .sg-external-badge {
     position: absolute;
     top: 8px;
@@ -254,6 +272,8 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
     pointer-events: none;
     z-index: 2;
 }
+
+/* ========== 选择覆盖层 ========== */
 .sg-checkbox-overlay {
     position: absolute;
     top: 0;
@@ -272,7 +292,7 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
     z-index: 3;
 }
 .sg-checkbox-overlay:after {
-    content: '';
+    content: "";
     width: 22px;
     height: 22px;
     background: rgba(255,255,255,0.7);
@@ -289,11 +309,13 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
     background: #467B96;
     border-color: #467B96;
     box-shadow: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white"%3E%3Cpath d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/%3E%3C/svg%3E");
     background-size: 14px;
     background-position: center;
     background-repeat: no-repeat;
 }
+
+/* ========== 工具栏 ========== */
 .sg-toolbar {
     display: flex;
     gap: 10px;
@@ -308,17 +330,20 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
     z-index: 5;
     flex-wrap: wrap;
 }
+
 .sg-toolbar-left {
     display: flex;
     gap: 10px;
     align-items: center;
     flex: 1;
 }
+
 .sg-toolbar-right {
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
 }
+
 .sg-btn {
     padding: 6px 12px;
     border-radius: 4px;
@@ -330,54 +355,25 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
     align-items: center;
     gap: 4px;
 }
-.sg-btn:hover {
-    background: #f9f9f9;
-}
-.sg-btn.primary {
-    background: #467B96;
-    color: #fff;
-    border-color: #467B96;
-}
-.sg-btn.primary:hover {
-    background: #3a6a7f;
-}
-.sg-btn.danger {
-    background: #fff0f0;
-    color: #d9534f;
-    border-color: #ffccc7;
-}
-.sg-btn.danger:hover {
-    background: #ffccc7;
-}
-.sg-btn.local {
-    background: #fff3e0;
-    color: #e65100;
-    border-color: #ffcc80;
-}
-.sg-btn.local:hover {
-    background: #ffe0b2;
-}
-.sg-btn.external {
-    background: #f3e5f5;
-    color: #7b1fa2;
-    border-color: #ce93d8;
-}
-.sg-btn.external:hover {
-    background: #e1bee7;
-}
-.sg-btn.move {
-    background: #e8f5e9;
-    color: #2e7d32;
-    border-color: #c8e6c9;
-}
-.sg-btn.move:hover {
-    background: #c8e6c9;
-}
+.sg-btn:hover { background: #f9f9f9; }
+.sg-btn.primary { background: #467B96; color: #fff; border-color: #467B96; }
+.sg-btn.primary:hover { background: #3a6a7f; }
+.sg-btn.danger { background: #fff0f0; color: #d9534f; border-color: #ffccc7; }
+.sg-btn.danger:hover { background: #ffccc7; }
+.sg-btn.local { background: #fff3e0; color: #e65100; border-color: #ffcc80; }
+.sg-btn.local:hover { background: #ffe0b2; }
+.sg-btn.external { background: #f3e5f5; color: #7b1fa2; border-color: #ce93d8; }
+.sg-btn.external:hover { background: #e1bee7; }
+.sg-btn.move { background: #e8f5e9; color: #2e7d32; border-color: #c8e6c9; }
+.sg-btn.move:hover { background: #c8e6c9; }
+
 .sg-selected-info {
     font-size: 13px;
     color: #666;
     font-weight: bold;
 }
+
+/* ========== 上传区域 ========== */
 .upload-area {
     border: 2px dashed #ddd;
     padding: 20px;
@@ -395,12 +391,14 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
     border-color: #467B96;
     background: #f0f7ff;
 }
+
 .file-list {
     margin-top: 15px;
     text-align: left;
     max-height: 150px;
     overflow-y: auto;
 }
+
 .file-item {
     display: flex;
     justify-content: space-between;
@@ -411,10 +409,8 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
     border-radius: 3px;
     font-size: 12px;
 }
-.upload-progress {
-    margin-top: 10px;
-    display: none;
-}
+
+.upload-progress { margin-top: 10px; display: none; }
 .upload-progress-bar {
     height: 4px;
     background: #467B96;
@@ -428,25 +424,27 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
     text-align: center;
     font-weight: bold;
 }
-.sg-form-group {
-    margin-bottom: 15px;
-}
+
+/* ========== 表单组 ========== */
+.sg-form-group { margin-bottom: 15px; }
 .sg-form-group label {
     display: block;
     margin-bottom: 5px;
     font-weight: bold;
 }
-.sg-form-group input, .sg-form-group textarea, .sg-form-group select {
+.sg-form-group input,
+.sg-form-group textarea,
+.sg-form-group select {
     width: 100%;
     padding: 8px 10px;
     border: 1px solid #ddd;
     border-radius: 4px;
     box-sizing: border-box;
 }
-.sg-move-list {
-    max-height: 400px;
-    overflow-y: auto;
-}
+
+/* ========== 移动列表 ========== */
+.sg-move-list { max-height: 400px; overflow-y: auto; }
+
 .sg-move-item {
     padding: 12px 15px;
     border: 1px solid #eee;
@@ -466,12 +464,15 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
     background: #e3f2fd;
     border-color: #467B96;
 }
+
 .sg-move-item-cover {
     width: 60px;
     height: 45px;
     object-fit: cover;
     border-radius: 4px;
 }
+
+/* ========== 描述编辑 ========== */
 .sg-desc-edit {
     position: absolute;
     bottom: 0;
@@ -490,15 +491,16 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
     font-size: 12px;
     box-sizing: border-box;
 }
-.sg-img-item:hover .sg-desc-edit {
-    display: block;
-}
+.sg-img-item:hover .sg-desc-edit { display: block; }
+
+/* ========== 本地浏览器 ========== */
 .local-browser {
     padding: 15px;
     background: #f9f9f9;
     border-radius: 6px;
     margin-bottom: 15px;
 }
+
 .local-browser-header {
     display: flex;
     align-items: center;
@@ -518,12 +520,14 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
     cursor: pointer;
     color: #467B96;
 }
+
 .local-folders {
     display: flex;
     flex-wrap: wrap;
     gap: 10px;
     margin-bottom: 15px;
 }
+
 .local-folder {
     padding: 10px 15px;
     background: #fff;
@@ -540,6 +544,7 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
     background: #f0f7ff;
     border-color: #467B96;
 }
+
 .local-images-grid {
     display: grid;
     grid-template-columns: repeat(6, 1fr);
@@ -548,10 +553,9 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
     overflow-y: auto;
 }
 @media (max-width: 767px) {
-    .local-images-grid {
-        grid-template-columns: repeat(3, 1fr);
-    }
+    .local-images-grid { grid-template-columns: repeat(3, 1fr); }
 }
+
 .local-img-item {
     position: relative;
     aspect-ratio: 1;
@@ -566,9 +570,7 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
     height: 100%;
     object-fit: cover;
 }
-.local-img-item.selected {
-    border-color: #467B96;
-}
+.local-img-item.selected { border-color: #467B96; }
 .local-img-item .check-mark {
     position: absolute;
     top: 5px;
@@ -581,9 +583,7 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
     align-items: center;
     justify-content: center;
 }
-.local-img-item.selected .check-mark {
-    display: flex;
-}
+.local-img-item.selected .check-mark { display: flex; }
 .local-img-item .in-album-badge {
     position: absolute;
     bottom: 5px;
@@ -594,6 +594,8 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
     padding: 2px 6px;
     border-radius: 3px;
 }
+
+/* ========== 布局切换 ========== */
 .sg-layout-toggle {
     display: flex;
     gap: 0;
@@ -611,9 +613,7 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
     font-weight: 500;
     color: #666;
 }
-.sg-layout-toggle button:first-child {
-    border-radius: 6px 0 0 6px;
-}
+.sg-layout-toggle button:first-child { border-radius: 6px 0 0 6px; }
 .sg-layout-toggle button:last-child {
     border-radius: 0 6px 6px 0;
     border-left: none;
@@ -623,7 +623,8 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
     color: #fff;
     border-color: #467B96;
 }
-/* 外链弹窗样式 */
+
+/* ========== 外链弹窗 ========== */
 .sg-external-box {
     padding: 15px;
     background: #fafafa;
@@ -645,58 +646,91 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
     color: #999;
     margin-top: 8px;
 }
-</style>
+</style>';
+}
+
+// 渲染样式
+renderPanelStyles();
+?>
 
 <div class="main">
     <div class="body container">
         <?php include 'page-title.php'; ?>
+        
         <div class="row typecho-page-main" role="main">
             <div class="col-mb-12">
+                <!-- 创建相册 -->
                 <div class="sg-create-box">
                     <input type="text" id="new-album-name" placeholder="输入新相册名称...">
                     <button class="btn primary" onclick="createAlbum()">创建相册</button>
                 </div>
-                
+
+                <!-- 相册列表 -->
                 <div class="sg-card-grid" id="album-list">
-                    <?php foreach($albums as $album): ?>
                     <?php
-                    $albumId = $album['id'];
-                    $rawCover = $album['cover'];
-                    $coverUrl = '';
-                    
-                    if (!empty($rawCover)) {
-                        if (strpos($rawCover, 'http://') === 0 || strpos($rawCover, 'https://') === 0) {
-                            $coverUrl = $rawCover;
+                    foreach ($albums as $album) :
+                        $albumId = $album['id'];
+                        $rawCover = $album['cover'];
+                        $coverUrl = '';
+
+                        if (!empty($rawCover)) {
+                            if (strpos($rawCover, 'http://') === 0 || strpos($rawCover, 'https://') === 0) {
+                                $coverUrl = $rawCover;
+                            } else {
+                                $coverUrl = $options->siteUrl . 'usr/uploads/' . $rawCover;
+                            }
                         } else {
-                            $coverUrl = $options->siteUrl . 'usr/uploads/' . $rawCover;
+                            $coverImg = $db->fetchRow(
+                                $db->select('filename')
+                                    ->from($prefix . 'smart_gallery_images')
+                                    ->where('album_id = ?', $albumId)
+                                    ->order('sort_order', Typecho_Db::SORT_ASC)
+                                    ->limit(1)
+                            );
+                            if ($coverImg) {
+                                $coverUrl = $options->siteUrl . 'usr/uploads/' . $coverImg['filename'];
+                            }
                         }
-                    } else {
-                        $coverImg = $db->fetchRow($db->select('filename')->from($prefix . 'smart_gallery_images')->where('album_id = ?', $albumId)->order('sort_order', Typecho_Db::SORT_ASC)->limit(1));
-                        if ($coverImg) {
-                            $coverUrl = $options->siteUrl . 'usr/uploads/' . $coverImg['filename'];
-                        }
-                    }
-                    
-                    $count = $db->fetchObject($db->select('COUNT(id) as num')->from($prefix . 'smart_gallery_images')->where('album_id = ?', $albumId))->num;
-                    $layout = isset($album['layout']) ? $album['layout'] : 'grid';
+
+                        $count = $db->fetchObject(
+                            $db->select('COUNT(id) as num')
+                                ->from($prefix . 'smart_gallery_images')
+                                ->where('album_id = ?', $albumId)
+                        )->num;
+
+                        $layout = isset($album['layout']) ? $album['layout'] : 'grid';
                     ?>
-                    <div class="sg-card" data-album-id="<?php echo $albumId; ?>" draggable="true">
-                        <img src="<?php echo $coverUrl; ?>" class="sg-card-cover" alt="cover" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 4 3%22%3E%3Crect fill=%22%23eee%22 width=%224%22 height=%223%22/%3E%3Ctext fill=%22%23ccc%22 x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-size=%220.5%22%3E无封面%3C/text%3E%3C/svg%3E'">
-                        <div class="sg-card-body">
-                            <div class="sg-card-title">
-                                <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><?php echo htmlspecialchars($album['name']); ?></span>
-                                <?php if(!empty($album['password'])): ?><span class="sg-card-lock">私密</span><?php endif; ?>
-                                <span class="sg-card-layout <?php echo $layout === 'masonry' ? 'masonry' : ''; ?>" id="layout-badge-<?php echo $albumId; ?>"><?php echo $layout === 'masonry' ? '瀑布' : '常规'; ?></span>
+                        <div class="sg-card" data-album-id="<?php echo $albumId; ?>" draggable="true">
+                            <img src="<?php echo $coverUrl; ?>" 
+                                 class="sg-card-cover" 
+                                 alt="cover" 
+                                 onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 4 3%22%3E%3Crect fill=%22%23eee%22 width=%224%22 height=%223%22/%3E%3Ctext fill=%22%23ccc%22 x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-size=%220.5%22%3E无封面%3C/text%3E%3C/svg%3E'">
+                            
+                            <div class="sg-card-body">
+                                <div class="sg-card-title">
+                                    <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                                        <?php echo htmlspecialchars($album['name']); ?>
+                                    </span>
+                                    <?php if (!empty($album['password'])) : ?>
+                                        <span class="sg-card-lock">私密</span>
+                                    <?php endif; ?>
+                                    <span class="sg-card-layout <?php echo $layout === 'masonry' ? 'masonry' : ''; ?>" 
+                                          id="layout-badge-<?php echo $albumId; ?>">
+                                        <?php echo $layout === 'masonry' ? '瀑布' : '常规'; ?>
+                                    </span>
+                                </div>
+                                <div class="sg-card-meta">
+                                    简介: <?php echo htmlspecialchars($album['description'] ?: '暂无'); ?>
+                                </div>
+                                <div class="sg-card-meta">数量: <?php echo $count; ?> 张</div>
                             </div>
-                            <div class="sg-card-meta">简介: <?php echo htmlspecialchars($album['description'] ?: '暂无'); ?></div>
-                            <div class="sg-card-meta">数量: <?php echo $count; ?> 张</div>
+                            
+                            <div class="sg-card-actions">
+                                <button class="primary" onclick='openEditModal(<?php echo json_encode($album); ?>)'>编辑</button>
+                                <button onclick="openImagesModal(<?php echo $albumId; ?>)">管理图片</button>
+                                <button class="warn" onclick="deleteAlbum(<?php echo $albumId; ?>)">删除</button>
+                            </div>
                         </div>
-                        <div class="sg-card-actions">
-                            <button class="primary" onclick='openEditModal(<?php echo json_encode($album); ?>)'>编辑</button>
-                            <button onclick="openImagesModal(<?php echo $albumId; ?>)">管理图片</button>
-                            <button class="warn" onclick="deleteAlbum(<?php echo $albumId; ?>)">删除</button>
-                        </div>
-                    </div>
                     <?php endforeach; ?>
                 </div>
             </div>
@@ -714,10 +748,27 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
         <div class="sg-modal-body">
             <form action="<?php echo $options->index; ?>/action/smart-gallery?do=update-album" method="post">
                 <input type="hidden" name="id" id="edit-id">
-                <div class="sg-form-group"><label>名称</label><input type="text" name="name" id="edit-name" required></div>
-                <div class="sg-form-group"><label>简介</label><textarea name="description" id="edit-desc" rows="3"></textarea></div>
-                <div class="sg-form-group"><label>封面(留空自动)</label><input type="text" name="cover" id="edit-cover" placeholder="可输入图片URL"></div>
-                <div class="sg-form-group"><label>密码(留空公开)</label><input type="text" name="password" id="edit-pwd" placeholder="留空则公开访问"></div>
+                
+                <div class="sg-form-group">
+                    <label>名称</label>
+                    <input type="text" name="name" id="edit-name" required>
+                </div>
+                
+                <div class="sg-form-group">
+                    <label>简介</label>
+                    <textarea name="description" id="edit-desc" rows="3"></textarea>
+                </div>
+                
+                <div class="sg-form-group">
+                    <label>封面 (留空自动)</label>
+                    <input type="text" name="cover" id="edit-cover" placeholder="可输入图片URL">
+                </div>
+                
+                <div class="sg-form-group">
+                    <label>密码 (留空公开)</label>
+                    <input type="text" name="password" id="edit-pwd" placeholder="留空则公开访问">
+                </div>
+                
                 <button type="submit" class="btn primary" style="width:100%;">保存</button>
             </form>
         </div>
@@ -732,11 +783,13 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
             <button onclick="closeModal('images-modal')">&times;</button>
         </div>
         <div class="sg-modal-body">
+            <!-- 布局切换 -->
             <div class="sg-layout-toggle">
                 <button id="layout-grid-btn" onclick="setLayout('grid')">常规网格</button>
                 <button id="layout-masonry-btn" onclick="setLayout('masonry')">瀑布流</button>
             </div>
-            
+
+            <!-- 工具栏 -->
             <div class="sg-toolbar">
                 <div class="sg-toolbar-left">
                     <span id="selected-count" class="sg-selected-info" style="display:none;">已选 0 张</span>
@@ -750,31 +803,42 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
                     <button class="sg-btn danger" onclick="handleDelete()">删除</button>
                 </div>
             </div>
-            
+
+            <!-- 本地图片浏览器 -->
             <div id="local-browser" class="local-browser" style="display:none;">
                 <div class="local-browser-header">
-                    <div class="breadcrumb">路径: <span onclick="loadLocalDir('')">uploads</span><span id="breadcrumb-path"></span></div>
+                    <div class="breadcrumb">
+                        路径: <span onclick="loadLocalDir('')">uploads</span><span id="breadcrumb-path"></span>
+                    </div>
                     <button class="sg-btn primary" onclick="insertSelectedLocal()">插入选中</button>
                     <button class="sg-btn" onclick="closeLocalBrowser()">关闭</button>
                 </div>
                 <div id="local-folders" class="local-folders"></div>
                 <div id="local-images" class="local-images-grid"></div>
             </div>
-            
+
+            <!-- 上传区域 -->
             <div id="upload-area" class="upload-area" onclick="document.getElementById('file-input').click()">
                 <input type="file" id="file-input" multiple accept="image/*,video/*" style="display:none;" onchange="handleFileSelect(this.files)">
-                <div style="font-size: 14px; color: #666;">点击选择图片或视频 (可多选)<br><span style="font-size: 12px; color: #999;">支持拖拽上传 | 拖拽图片可排序</span></div>
+                <div style="font-size: 14px; color: #666;">
+                    点击选择图片或视频 (可多选)<br>
+                    <span style="font-size: 12px; color: #999;">支持拖拽上传 | 拖拽图片可排序</span>
+                </div>
             </div>
-            
+
             <div id="file-list" class="file-list"></div>
-            
+
             <div id="upload-controls" style="margin-top: 15px; display: none;">
                 <button class="btn primary" style="width: 100%;" onclick="startUpload()" id="upload-btn">开始上传</button>
-                <div class="upload-progress" id="upload-progress"><div class="upload-progress-bar" id="progress-bar"></div><div class="upload-percent-text" id="progress-text">0%</div></div>
+                <div class="upload-progress" id="upload-progress">
+                    <div class="upload-progress-bar" id="progress-bar"></div>
+                    <div class="upload-percent-text" id="progress-text">0%</div>
+                </div>
             </div>
-            
+
             <div style="margin: 15px 0; border-bottom: 1px solid #eee;"></div>
-            
+
+            <!-- 图片列表 -->
             <div id="images-list" class="sg-img-grid"></div>
         </div>
     </div>
@@ -789,9 +853,7 @@ $albums = $db->fetchAll($db->select()->from($prefix . 'smart_gallery_albums')->o
         </div>
         <div class="sg-modal-body">
             <div class="sg-external-box">
-                <textarea id="external-links" placeholder="每行一个链接，例如：
-https://example.com/image1.jpg
-https://example.com/video.mp4"></textarea>
+                <textarea id="external-links" placeholder="每行一个链接，例如：&#10;https://example.com/image1.jpg&#10;https://example.com/video.mp4"></textarea>
                 <div class="tip">支持图片和视频链接，自动识别类型，每行一个链接</div>
             </div>
             <button class="btn primary" style="width:100%;" onclick="insertExternalLinks()">添加到相册</button>
@@ -802,7 +864,10 @@ https://example.com/video.mp4"></textarea>
 <!-- 移动图片弹窗 -->
 <div id="move-modal" class="sg-modal-overlay">
     <div class="sg-modal-content" style="max-width: 500px;">
-        <div class="sg-modal-header"><h3>移动到其他相册</h3><button onclick="closeModal('move-modal')">&times;</button></div>
+        <div class="sg-modal-header">
+            <h3>移动到其他相册</h3>
+            <button onclick="closeModal('move-modal')">&times;</button>
+        </div>
         <div class="sg-modal-body">
             <div class="sg-move-list" id="move-album-list"></div>
             <button class="btn primary" style="width:100%; margin-top:15px;" onclick="executeMove()">确认移动</button>
@@ -814,6 +879,7 @@ https://example.com/video.mp4"></textarea>
 <input type="hidden" id="current-album-layout" value="grid">
 
 <script>
+// ========== 状态变量 ==========
 var selectedImgs = {};
 var pendingFiles = [];
 var localSelectedImgs = [];
@@ -824,29 +890,30 @@ var currentAlbumLayout = 'grid';
 var currentAlbumId = 0;
 var draggedItem = null;
 
-// ========== 修复后的相册拖拽排序 ==========
-function initAlbumDragSort() {
+// ========== 相册拖拽排序 ==========
+function initAlbumDragSort()
+{
     var container = document.getElementById('album-list');
     var cards = container.querySelectorAll('.sg-card');
-    
+
     cards.forEach(function(card) {
         card.addEventListener('dragstart', function(e) {
             draggedItem = card;
             card.classList.add('dragging');
             e.dataTransfer.effectAllowed = 'move';
         });
-        
+
         card.addEventListener('dragend', function(e) {
             card.classList.remove('dragging');
             draggedItem = null;
             saveAlbumOrder();
         });
-        
+
         card.addEventListener('dragover', function(e) {
             e.preventDefault();
             e.dataTransfer.dropEffect = 'move';
+            
             if (draggedItem && draggedItem !== card) {
-                var container = document.getElementById('album-list');
                 var afterElement = getDragAfterElement(container, e.clientY);
                 if (afterElement == null) {
                     container.appendChild(draggedItem);
@@ -855,15 +922,17 @@ function initAlbumDragSort() {
                 }
             }
         });
-        
+
         card.addEventListener('drop', function(e) {
             e.preventDefault();
         });
     });
 }
 
-function getDragAfterElement(container, y) {
-    var draggableElements = [...container.querySelectorAll('.sg-card:not(.dragging)')];
+function getDragAfterElement(container, y)
+{
+    var draggableElements = Array.from(container.querySelectorAll('.sg-card:not(.dragging)'));
+    
     return draggableElements.reduce(function(closest, child) {
         var box = child.getBoundingClientRect();
         var offset = y - box.top - box.height / 2;
@@ -875,13 +944,18 @@ function getDragAfterElement(container, y) {
     }, { offset: Number.NEGATIVE_INFINITY }).element;
 }
 
-function saveAlbumOrder() {
+function saveAlbumOrder()
+{
     var cards = document.querySelectorAll('#album-list .sg-card');
     var orders = [];
-    cards.forEach(function(card, index) {
-        orders.push({ id: parseInt(card.getAttribute('data-album-id')), order: index });
-    });
     
+    cards.forEach(function(card, index) {
+        orders.push({
+            id: parseInt(card.getAttribute('data-album-id')),
+            order: index
+        });
+    });
+
     fetch('<?php echo $options->index; ?>/action/smart-gallery?do=save-album-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -889,20 +963,28 @@ function saveAlbumOrder() {
     });
 }
 
-function createAlbum() {
+// ========== 相册操作 ==========
+function createAlbum()
+{
     var name = document.getElementById('new-album-name').value;
-    if(!name) { alert('请输入名称'); return; }
-    
+    if (!name) {
+        alert('请输入名称');
+        return;
+    }
+
     var formData = new FormData();
     formData.append('name', name);
-    
+
     fetch('<?php echo $options->index; ?>/action/smart-gallery?do=create-album', {
         method: 'POST',
         body: formData
-    }).then(() => location.reload());
+    }).then(function() {
+        location.reload();
+    });
 }
 
-function openEditModal(album) {
+function openEditModal(album)
+{
     document.getElementById('edit-id').value = album.id;
     document.getElementById('edit-name').value = album.name;
     document.getElementById('edit-desc').value = album.description || '';
@@ -911,36 +993,48 @@ function openEditModal(album) {
     document.getElementById('edit-modal').style.display = 'flex';
 }
 
-function openImagesModal(id) {
+function openImagesModal(id)
+{
     currentAlbumId = id;
     document.getElementById('current-album-id').value = id;
     document.getElementById('images-modal').style.display = 'flex';
     loadImages(id);
 }
 
-function setLayout(layout) {
+function deleteAlbum(id)
+{
+    if (confirm('确定删除该相册？相册内图片将一并删除。')) {
+        window.location.href = '<?php echo $options->index; ?>/action/smart-gallery?do=delete-album&id=' + id;
+    }
+}
+
+// ========== 布局管理 ==========
+function setLayout(layout)
+{
     currentAlbumLayout = layout;
+    
     document.getElementById('layout-grid-btn').classList.toggle('active', layout === 'grid');
     document.getElementById('layout-masonry-btn').classList.toggle('active', layout === 'masonry');
     updatePreviewLayout(layout);
-    
+
     var layoutBadge = document.getElementById('layout-badge-' + currentAlbumId);
     if (layoutBadge) {
         layoutBadge.textContent = layout === 'masonry' ? '瀑布' : '常规';
         layoutBadge.classList.toggle('masonry', layout === 'masonry');
     }
-    
+
     var formData = new FormData();
     formData.append('id', currentAlbumId);
     formData.append('layout', layout);
-    
+
     fetch('<?php echo $options->index; ?>/action/smart-gallery?do=update-album-layout', {
         method: 'POST',
         body: formData
     });
 }
 
-function updatePreviewLayout(layout) {
+function updatePreviewLayout(layout)
+{
     var box = document.getElementById('images-list');
     if (layout === 'masonry') {
         box.className = 'sg-preview-masonry';
@@ -951,73 +1045,85 @@ function updatePreviewLayout(layout) {
     }
 }
 
-function loadImages(id) {
+// ========== 图片加载 ==========
+function loadImages(id)
+{
     var box = document.getElementById('images-list');
     box.innerHTML = '<p style="text-align:center;padding:40px;color:#999;">加载中...</p>';
     clearSelection();
-    
+
     fetch('<?php echo $options->index; ?>/action/smart-gallery?do=get-album-info&album_id=' + id)
-        .then(res => res.json())
-        .then(albumData => {
+        .then(function(res) { return res.json(); })
+        .then(function(albumData) {
             currentAlbumLayout = albumData.layout || 'grid';
             document.getElementById('layout-grid-btn').classList.toggle('active', currentAlbumLayout === 'grid');
             document.getElementById('layout-masonry-btn').classList.toggle('active', currentAlbumLayout === 'masonry');
             return fetch('<?php echo $options->index; ?>/action/smart-gallery?do=fetch-images&album_id=' + id);
         })
-        .then(res => res.json())
-        .then(data => {
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
             allImages = data;
-            if(data.length === 0) {
+            
+            if (data.length === 0) {
                 box.innerHTML = '<div style="text-align:center;color:#999;padding:40px;">暂无内容</div>';
-            } else {
-                var html = '';
-                data.forEach(function(img) {
-                    var mediaUrl = img.isExternal ? img.filename : '<?php echo $options->siteUrl; ?>usr/uploads/' + img.filename;
-                    var isVideo = (img.type === 'video');
-                    var isLocal = img.isLocal;
-                    var isExternal = img.isExternal;
-                    var desc = img.description || '';
-                    
-                    var mediaHtml = isVideo ? '<video src="' + mediaUrl + '" muted></video>' : '<img src="' + mediaUrl + '">';
-                    var videoBadge = isVideo ? '<div class="sg-video-badge"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>视频</div>' : '';
-                    var localBadge = isLocal ? '<div class="sg-local-badge">本地</div>' : '';
-                    var externalBadge = isExternal ? '<div class="sg-external-badge">外链</div>' : '';
-                    
-                    html += '<div class="sg-img-item" data-id="' + img.id + '" data-filename="' + img.filename + '" data-album="' + id + '" data-local="' + (isLocal ? '1' : '0') + '" data-external="' + (isExternal ? '1' : '0') + '" draggable="true">';
-                    html += '<div class="sg-img-box-wrap">' + mediaHtml + '</div>' + videoBadge + localBadge + externalBadge;
-                    html += '<div class="sg-checkbox-overlay" onclick="toggleSelect(this.parentElement, event)"></div>';
-                    html += '<div class="sg-desc-edit" onclick="event.stopPropagation()"><input type="text" value="' + desc.replace(/"/g, '&quot;') + '" placeholder="添加描述..." onchange="saveImageDesc(' + img.id + ', this.value)"></div>';
-                    html += '</div>';
-                });
-                box.innerHTML = html;
-                updatePreviewLayout(currentAlbumLayout);
-                initImageDragSort();
+                return;
             }
+
+            var html = '';
+            data.forEach(function(img) {
+                var mediaUrl = img.isExternal ? img.filename : '<?php echo $options->siteUrl; ?>usr/uploads/' + img.filename;
+                var isVideo = (img.type === 'video');
+                var isLocal = img.isLocal;
+                var isExternal = img.isExternal;
+                var desc = img.description || '';
+
+                var mediaHtml = isVideo
+                    ? '<video src="' + mediaUrl + '" muted></video>'
+                    : '<img src="' + mediaUrl + '">';
+
+                var videoBadge = isVideo
+                    ? '<div class="sg-video-badge"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>视频</div>'
+                    : '';
+
+                var localBadge = isLocal ? '<div class="sg-local-badge">本地</div>' : '';
+                var externalBadge = isExternal ? '<div class="sg-external-badge">外链</div>' : '';
+
+                html += '<div class="sg-img-item" data-id="' + img.id + '" data-filename="' + img.filename + '" data-album="' + id + '" data-local="' + (isLocal ? '1' : '0') + '" data-external="' + (isExternal ? '1' : '0') + '" draggable="true">';
+                html += '<div class="sg-img-box-wrap">' + mediaHtml + '</div>' + videoBadge + localBadge + externalBadge;
+                html += '<div class="sg-checkbox-overlay" onclick="toggleSelect(this.parentElement, event)"></div>';
+                html += '<div class="sg-desc-edit" onclick="event.stopPropagation()"><input type="text" value="' + desc.replace(/"/g, '&quot;') + '" placeholder="添加描述..." onchange="saveImageDesc(' + img.id + ', this.value)"></div>';
+                html += '</div>';
+            });
+
+            box.innerHTML = html;
+            updatePreviewLayout(currentAlbumLayout);
+            initImageDragSort();
         });
 }
 
-function initImageDragSort() {
+// ========== 图片拖拽排序 ==========
+function initImageDragSort()
+{
     var container = document.getElementById('images-list');
     var items = container.querySelectorAll('.sg-img-item');
     var draggedImg = null;
-    
+
     items.forEach(function(item) {
         item.addEventListener('dragstart', function(e) {
             draggedImg = item;
             item.classList.add('dragging');
             e.dataTransfer.effectAllowed = 'move';
         });
-        
+
         item.addEventListener('dragend', function(e) {
             item.classList.remove('dragging');
             draggedImg = null;
             saveImageOrder();
         });
-        
+
         item.addEventListener('dragover', function(e) {
             e.preventDefault();
             if (draggedImg && draggedImg !== item) {
-                var container = document.getElementById('images-list');
                 var afterElement = getDragAfterElement(container, e.clientY);
                 if (afterElement == null) {
                     container.appendChild(draggedImg);
@@ -1029,13 +1135,18 @@ function initImageDragSort() {
     });
 }
 
-function saveImageOrder() {
+function saveImageOrder()
+{
     var items = document.querySelectorAll('#images-list .sg-img-item');
     var orders = [];
-    items.forEach(function(item, index) {
-        orders.push({ id: parseInt(item.getAttribute('data-id')), order: index });
-    });
     
+    items.forEach(function(item, index) {
+        orders.push({
+            id: parseInt(item.getAttribute('data-id')),
+            order: index
+        });
+    });
+
     fetch('<?php echo $options->index; ?>/action/smart-gallery?do=save-img-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1043,7 +1154,8 @@ function saveImageOrder() {
     });
 }
 
-function saveImageDesc(id, desc) {
+function saveImageDesc(id, desc)
+{
     fetch('<?php echo $options->index; ?>/action/smart-gallery?do=save-img-desc', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1051,10 +1163,12 @@ function saveImageDesc(id, desc) {
     });
 }
 
-function toggleSelectAll() {
+// ========== 选择操作 ==========
+function toggleSelectAll()
+{
     var items = document.querySelectorAll('#images-list .sg-img-item');
     var allSelected = Object.keys(selectedImgs).length === items.length && items.length > 0;
-    
+
     if (allSelected) {
         clearSelection();
     } else {
@@ -1062,34 +1176,213 @@ function toggleSelectAll() {
             var id = item.getAttribute('data-id');
             var filename = item.getAttribute('data-filename');
             var albumId = item.getAttribute('data-album');
-            selectedImgs[id] = {filename: filename, albumId: albumId};
+            selectedImgs[id] = { filename: filename, albumId: albumId };
             item.classList.add('selected');
         });
     }
+    
     updateCount();
 }
 
-function openLocalBrowser() {
+function toggleSelect(el, event)
+{
+    event.stopPropagation();
+
+    var id = el.getAttribute('data-id');
+    var filename = el.getAttribute('data-filename');
+    var albumId = el.getAttribute('data-album');
+
+    if (selectedImgs[id]) {
+        delete selectedImgs[id];
+        el.classList.remove('selected');
+    } else {
+        selectedImgs[id] = { filename: filename, albumId: albumId };
+        el.classList.add('selected');
+    }
+
+    updateCount();
+}
+
+function updateCount()
+{
+    var count = Object.keys(selectedImgs).length;
+    var countEl = document.getElementById('selected-count');
+    if (count > 0) {
+        countEl.style.display = 'inline';
+        countEl.innerText = '已选 ' + count + ' 张';
+    } else {
+        countEl.style.display = 'none';
+    }
+}
+
+function clearSelection()
+{
+    selectedImgs = {};
+    updateCount();
+    document.querySelectorAll('.sg-img-item.selected').forEach(function(item) {
+        item.classList.remove('selected');
+    });
+}
+
+// ========== 封面设置 ==========
+function handleSetCover()
+{
+    var ids = Object.keys(selectedImgs);
+    if (ids.length === 0) {
+        alert('请先勾选一张图片');
+        return;
+    }
+    if (ids.length > 1) {
+        alert('封面设置仅支持一张图片，请勿多选');
+        return;
+    }
+
+    var imgData = selectedImgs[ids[0]];
+    var formData = new FormData();
+    formData.append('filename', imgData.filename);
+    formData.append('album_id', imgData.albumId);
+
+    fetch('<?php echo $options->index; ?>/action/smart-gallery?do=set-cover', {
+        method: 'POST',
+        body: formData
+    }).then(function(res) { return res.json(); })
+      .then(function(d) {
+          if (d.status === 'success') {
+              alert('封面已更新');
+              location.reload();
+          } else {
+              alert('设置失败');
+          }
+      });
+}
+
+// ========== 删除操作 ==========
+function handleDelete()
+{
+    var ids = Object.keys(selectedImgs);
+    if (ids.length === 0) {
+        alert('请先勾选图片');
+        return;
+    }
+
+    if (!confirm('确定要移除选中的 ' + ids.length + ' 张图片吗？\n\n注意：本地图片和外链图片只会从相册移除，不会删除源文件。')) {
+        return;
+    }
+
+    var promises = ids.map(function(id) {
+        return fetch('<?php echo $options->index; ?>/action/smart-gallery?do=delete-img&id=' + id);
+    });
+
+    Promise.all(promises).then(function() {
+        var albumId = document.getElementById('current-album-id').value;
+        loadImages(albumId);
+    });
+}
+
+// ========== 移动图片 ==========
+function openMoveModal()
+{
+    var ids = Object.keys(selectedImgs);
+    if (ids.length === 0) {
+        alert('请先选择要移动的图片');
+        return;
+    }
+
+    var currentAlbumId = document.getElementById('current-album-id').value;
+    var listEl = document.getElementById('move-album-list');
+    var albums = <?php echo json_encode($albums); ?>;
+
+    var html = '';
+    albums.forEach(function(album) {
+        if (album.id != currentAlbumId) {
+            var coverUrl = '';
+            if (album.cover) {
+                coverUrl = album.cover.indexOf('http') === 0
+                    ? album.cover
+                    : '<?php echo $options->siteUrl; ?>usr/uploads/' + album.cover;
+            }
+            html += '<div class="sg-move-item" data-album-id="' + album.id + '" onclick="selectMoveTarget(this)">';
+            if (coverUrl) {
+                html += '<img src="' + coverUrl + '" class="sg-move-item-cover" onerror="this.style.display=\'none\'">';
+            }
+            html += '<span>' + album.name + '</span></div>';
+        }
+    });
+
+    if (!html) {
+        html = '<p style="color:#999; text-align:center;">没有其他相册可移动</p>';
+    }
+
+    listEl.innerHTML = html;
+    targetMoveAlbum = null;
+    document.getElementById('move-modal').style.display = 'flex';
+}
+
+function selectMoveTarget(el)
+{
+    document.querySelectorAll('.sg-move-item').forEach(function(item) {
+        item.classList.remove('selected');
+    });
+    el.classList.add('selected');
+    targetMoveAlbum = el.getAttribute('data-album-id');
+}
+
+function executeMove()
+{
+    if (!targetMoveAlbum) {
+        alert('请选择目标相册');
+        return;
+    }
+
+    var ids = Object.keys(selectedImgs);
+
+    fetch('<?php echo $options->index; ?>/action/smart-gallery?do=move-images', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            ids: ids,
+            target_album: parseInt(targetMoveAlbum)
+        })
+    }).then(function(res) { return res.json(); })
+      .then(function(data) {
+          if (data.status === 'success') {
+              alert('成功移动 ' + data.count + ' 张图片');
+              closeModal('move-modal');
+              clearSelection();
+              var albumId = document.getElementById('current-album-id').value;
+              loadImages(albumId);
+          } else {
+              alert('移动失败: ' + (data.msg || '未知错误'));
+          }
+      });
+}
+
+// ========== 本地图片浏览器 ==========
+function openLocalBrowser()
+{
     document.getElementById('local-browser').style.display = 'block';
     localSelectedImgs = [];
     loadLocalDir('');
 }
 
-function closeLocalBrowser() {
+function closeLocalBrowser()
+{
     document.getElementById('local-browser').style.display = 'none';
     localSelectedImgs = [];
 }
 
-function loadLocalDir(dir) {
+function loadLocalDir(dir)
+{
     currentLocalDir = dir;
+
     var foldersEl = document.getElementById('local-folders');
     var imagesEl = document.getElementById('local-images');
     var breadcrumbEl = document.getElementById('breadcrumb-path');
-    
+
     foldersEl.innerHTML = '<p>加载中...</p>';
     imagesEl.innerHTML = '';
-    
-    if(dir) {
+
+    if (dir) {
         var parts = dir.split('/');
         var path = '';
         var html = '';
@@ -1101,31 +1394,35 @@ function loadLocalDir(dir) {
     } else {
         breadcrumbEl.innerHTML = '';
     }
-    
+
     fetch('<?php echo $options->index; ?>/action/smart-gallery?do=scan-local&dir=' + encodeURIComponent(dir))
-        .then(res => res.json())
-        .then(data => {
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
             var folderHtml = '';
-            if(data.folders && data.folders.length > 0) {
+            if (data.folders && data.folders.length > 0) {
                 data.folders.forEach(function(folder) {
                     folderHtml += '<div class="local-folder" onclick="loadLocalDir(\'' + folder.path + '\')">📁 ' + folder.name + '</div>';
                 });
             }
             foldersEl.innerHTML = folderHtml || '<p style="color:#999;font-size:13px;">无子文件夹</p>';
-            
+
             var imgHtml = '';
-            if(data.images && data.images.length > 0) {
+            if (data.images && data.images.length > 0) {
                 data.images.forEach(function(img) {
                     var imgUrl = '<?php echo $options->siteUrl; ?>usr/uploads/' + img.path;
                     var inAlbumBadge = img.inAlbum ? '<div class="in-album-badge">已在相册</div>' : '';
-                    imgHtml += '<div class="local-img-item" data-path="' + img.path + '" onclick="toggleLocalSelect(this)"><img src="' + imgUrl + '"><div class="check-mark"><svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg></div>' + inAlbumBadge + '</div>';
+                    imgHtml += '<div class="local-img-item" data-path="' + img.path + '" onclick="toggleLocalSelect(this)">';
+                    imgHtml += '<img src="' + imgUrl + '">';
+                    imgHtml += '<div class="check-mark"><svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg></div>';
+                    imgHtml += inAlbumBadge + '</div>';
                 });
             }
             imagesEl.innerHTML = imgHtml || '<p style="color:#999;font-size:13px;grid-column:1/-1;text-align:center;">无图片</p>';
         });
 }
 
-function toggleLocalSelect(el) {
+function toggleLocalSelect(el)
+{
     var path = el.getAttribute('data-path');
     var idx = localSelectedImgs.indexOf(path);
     if (idx > -1) {
@@ -1137,69 +1434,85 @@ function toggleLocalSelect(el) {
     }
 }
 
-function insertSelectedLocal() {
-    if(localSelectedImgs.length === 0) { alert('请先选择图片'); return; }
-    
+function insertSelectedLocal()
+{
+    if (localSelectedImgs.length === 0) {
+        alert('请先选择图片');
+        return;
+    }
+
     var albumId = document.getElementById('current-album-id').value;
     var params = 'album_id=' + encodeURIComponent(albumId);
     localSelectedImgs.forEach(function(path) {
         params += '&paths[]=' + encodeURIComponent(path);
     });
-    
+
     fetch('<?php echo $options->index; ?>/action/smart-gallery?do=insert-local', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: params
-    })
-    .then(res => res.json())
-    .then(data => {
-        if(data.status === 'success') {
-            alert('成功插入 ' + data.count + ' 张图片');
-            closeLocalBrowser();
-            loadImages(albumId);
-        } else {
-            alert('插入失败: ' + (data.msg || '未知错误'));
-        }
-    });
+    }).then(function(res) { return res.json(); })
+      .then(function(data) {
+          if (data.status === 'success') {
+              alert('成功插入 ' + data.count + ' 张图片');
+              closeLocalBrowser();
+              loadImages(albumId);
+          } else {
+              alert('插入失败: ' + (data.msg || '未知错误'));
+          }
+      });
 }
 
-function openExternalModal() {
+// ========== 外链图片 ==========
+function openExternalModal()
+{
     document.getElementById('external-links').value = '';
     document.getElementById('external-modal').style.display = 'flex';
 }
 
-function insertExternalLinks() {
+function insertExternalLinks()
+{
     var text = document.getElementById('external-links').value.trim();
-    if(!text) { alert('请输入链接'); return; }
-    
+    if (!text) {
+        alert('请输入链接');
+        return;
+    }
+
     var links = text.split('\n').map(function(line) {
         return line.trim();
     }).filter(function(line) {
         return line && (line.indexOf('http://') === 0 || line.indexOf('https://') === 0);
     });
-    
-    if(links.length === 0) { alert('未检测到有效链接'); return; }
-    
+
+    if (links.length === 0) {
+        alert('未检测到有效链接');
+        return;
+    }
+
     var albumId = document.getElementById('current-album-id').value;
-    
+
     fetch('<?php echo $options->index; ?>/action/smart-gallery?do=insert-external', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ album_id: parseInt(albumId), links: links })
-    })
-    .then(res => res.json())
-    .then(data => {
-        if(data.status === 'success') {
-            alert('成功添加 ' + data.count + ' 个外链');
-            closeModal('external-modal');
-            loadImages(albumId);
-        } else {
-            alert('添加失败: ' + (data.msg || '未知错误'));
-        }
-    });
+        body: JSON.stringify({
+            album_id: parseInt(albumId),
+            links: links
+        })
+    }).then(function(res) { return res.json(); })
+      .then(function(data) {
+          if (data.status === 'success') {
+              alert('成功添加 ' + data.count + ' 个外链');
+              closeModal('external-modal');
+              loadImages(albumId);
+          } else {
+              alert('添加失败: ' + (data.msg || '未知错误'));
+          }
+      });
 }
 
-function handleFileSelect(files) {
+// ========== 文件上传 ==========
+function handleFileSelect(files)
+{
     if (files.length === 0) return;
     for (var i = 0; i < files.length; i++) {
         pendingFiles.push(files[i]);
@@ -1207,31 +1520,34 @@ function handleFileSelect(files) {
     updateFileList();
 }
 
-function updateFileList() {
+function updateFileList()
+{
     var listEl = document.getElementById('file-list');
     var controlsEl = document.getElementById('upload-controls');
-    
+
     if (pendingFiles.length === 0) {
         listEl.innerHTML = '';
         controlsEl.style.display = 'none';
         return;
     }
-    
+
     controlsEl.style.display = 'block';
-    
     var html = '';
     pendingFiles.forEach(function(file, index) {
-        html += '<div class="file-item"><span>' + file.name + ' (' + formatSize(file.size) + ')</span><button onclick="removeFile(' + index + ')" style="background:none; border:none; color:#d9534f; cursor:pointer;">✕</button></div>';
+        html += '<div class="file-item"><span>' + file.name + ' (' + formatSize(file.size) + ')</span>';
+        html += '<button onclick="removeFile(' + index + ')" style="background:none;border:none;color:#d9534f;cursor:pointer;">✕</button></div>';
     });
     listEl.innerHTML = html;
 }
 
-function removeFile(index) {
+function removeFile(index)
+{
     pendingFiles.splice(index, 1);
     updateFileList();
 }
 
-function formatSize(bytes) {
+function formatSize(bytes)
+{
     if (bytes === 0) return '0 B';
     var k = 1024;
     var sizes = ['B', 'KB', 'MB', 'GB'];
@@ -1239,27 +1555,31 @@ function formatSize(bytes) {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
-function startUpload() {
-    if (pendingFiles.length === 0) { alert('请先选择文件'); return; }
-    
+function startUpload()
+{
+    if (pendingFiles.length === 0) {
+        alert('请先选择文件');
+        return;
+    }
+
     var albumId = document.getElementById('current-album-id').value;
     var uploadBtn = document.getElementById('upload-btn');
     var progressEl = document.getElementById('upload-progress');
     var progressBar = document.getElementById('progress-bar');
     var progressText = document.getElementById('progress-text');
-    
+
     uploadBtn.disabled = true;
     uploadBtn.innerText = '上传中...';
     progressEl.style.display = 'block';
     progressBar.style.width = '0%';
     progressText.innerText = '0%';
-    
+
     var formData = new FormData();
     formData.append('album_id', albumId);
     pendingFiles.forEach(function(file) {
         formData.append('files[]', file, file.name);
     });
-    
+
     var xhr = new XMLHttpRequest();
     xhr.upload.addEventListener('progress', function(e) {
         if (e.lengthComputable) {
@@ -1268,7 +1588,7 @@ function startUpload() {
             progressText.innerText = percent + '%';
         }
     });
-    
+
     xhr.addEventListener('load', function() {
         if (xhr.status === 200) {
             try {
@@ -1285,186 +1605,60 @@ function startUpload() {
                     uploadBtn.disabled = false;
                     uploadBtn.innerText = '开始上传';
                 }
-            } catch(e) {
+            } catch (e) {
                 alert('响应解析失败');
                 uploadBtn.disabled = false;
                 uploadBtn.innerText = '开始上传';
             }
         }
     });
-    
+
     xhr.open('POST', '<?php echo $options->index; ?>/action/smart-gallery?do=upload');
     xhr.send(formData);
 }
 
+// ========== 上传区域拖拽 ==========
 var uploadArea = document.getElementById('upload-area');
+
 uploadArea.addEventListener('dragover', function(e) {
     e.preventDefault();
     uploadArea.classList.add('dragover');
 });
+
 uploadArea.addEventListener('dragleave', function(e) {
     e.preventDefault();
     uploadArea.classList.remove('dragover');
 });
+
 uploadArea.addEventListener('drop', function(e) {
     e.preventDefault();
     uploadArea.classList.remove('dragover');
-    if (e.dataTransfer.files.length > 0) handleFileSelect(e.dataTransfer.files);
+    if (e.dataTransfer.files.length > 0) {
+        handleFileSelect(e.dataTransfer.files);
+    }
 });
 
-function toggleSelect(el, event) {
-    var id = el.getAttribute('data-id');
-    var filename = el.getAttribute('data-filename');
-    var albumId = el.getAttribute('data-album');
-    
-    if (selectedImgs[id]) {
-        delete selectedImgs[id];
-        el.classList.remove('selected');
-    } else {
-        selectedImgs[id] = {filename: filename, albumId: albumId};
-        el.classList.add('selected');
-    }
-    updateCount();
-}
-
-function updateCount() {
-    var count = Object.keys(selectedImgs).length;
-    var countEl = document.getElementById('selected-count');
-    if(count > 0) {
-        countEl.style.display = 'inline';
-        countEl.innerText = '已选 ' + count + ' 张';
-    } else {
-        countEl.style.display = 'none';
-    }
-}
-
-function clearSelection() {
-    selectedImgs = {};
-    updateCount();
-    document.querySelectorAll('.sg-img-item.selected').forEach(function(item) {
-        item.classList.remove('selected');
-    });
-}
-
-function handleSetCover() {
-    var ids = Object.keys(selectedImgs);
-    if(ids.length === 0) { alert('请先勾选一张图片'); return; }
-    if(ids.length > 1) { alert('封面设置仅支持一张图片，请勿多选'); return; }
-    
-    var imgData = selectedImgs[ids[0]];
-    var formData = new FormData();
-    formData.append('filename', imgData.filename);
-    formData.append('album_id', imgData.albumId);
-    
-    fetch('<?php echo $options->index; ?>/action/smart-gallery?do=set-cover', {
-        method: 'POST',
-        body: formData
-    })
-    .then(res => res.json())
-    .then(function(d) {
-        if(d.status === 'success') {
-            alert('封面已更新');
-            location.reload();
-        } else alert('设置失败');
-    });
-}
-
-function handleDelete() {
-    var ids = Object.keys(selectedImgs);
-    if(ids.length === 0) { alert('请先勾选图片'); return; }
-    
-    if(!confirm('确定要移除选中的 ' + ids.length + ' 张图片吗？\n\n注意：本地图片和外链图片只会从相册移除，不会删除源文件。')) return;
-    
-    var promises = ids.map(function(id) {
-        return fetch('<?php echo $options->index; ?>/action/smart-gallery?do=delete-img&id=' + id);
-    });
-    
-    Promise.all(promises).then(function() {
-        var albumId = document.getElementById('current-album-id').value;
-        loadImages(albumId);
-    });
-}
-
-function openMoveModal() {
-    var ids = Object.keys(selectedImgs);
-    if(ids.length === 0) { alert('请先选择要移动的图片'); return; }
-    
-    var currentAlbumId = document.getElementById('current-album-id').value;
-    var listEl = document.getElementById('move-album-list');
-    var albums = <?php echo json_encode($albums); ?>;
-    
-    var html = '';
-    albums.forEach(function(album) {
-        if(album.id != currentAlbumId) {
-            var coverUrl = '';
-            if(album.cover) {
-                coverUrl = album.cover.indexOf('http') === 0 ? album.cover : '<?php echo $options->siteUrl; ?>usr/uploads/' + album.cover;
-            }
-            html += '<div class="sg-move-item" data-album-id="' + album.id + '" onclick="selectMoveTarget(this)">';
-            if(coverUrl) {
-                html += '<img src="' + coverUrl + '" class="sg-move-item-cover" onerror="this.style.display=\'none\'">';
-            }
-            html += '<span>' + album.name + '</span></div>';
-        }
-    });
-    
-    if(!html) { html = '<p style="color:#999; text-align:center;">没有其他相册可移动</p>'; }
-    listEl.innerHTML = html;
-    targetMoveAlbum = null;
-    document.getElementById('move-modal').style.display = 'flex';
-}
-
-function selectMoveTarget(el) {
-    document.querySelectorAll('.sg-move-item').forEach(function(item) {
-        item.classList.remove('selected');
-    });
-    el.classList.add('selected');
-    targetMoveAlbum = el.getAttribute('data-album-id');
-}
-
-function executeMove() {
-    if(!targetMoveAlbum) { alert('请选择目标相册'); return; }
-    
-    var ids = Object.keys(selectedImgs);
-    
-    fetch('<?php echo $options->index; ?>/action/smart-gallery?do=move-images', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: ids, target_album: parseInt(targetMoveAlbum) })
-    })
-    .then(res => res.json())
-    .then(function(data) {
-        if(data.status === 'success') {
-            alert('成功移动 ' + data.count + ' 张图片');
-            closeModal('move-modal');
-            clearSelection();
-            var albumId = document.getElementById('current-album-id').value;
-            loadImages(albumId);
-        } else {
-            alert('移动失败: ' + (data.msg || '未知错误'));
-        }
-    });
-}
-
-function deleteAlbum(id) {
-    if(confirm('确定删除该相册？相册内图片将一并删除。')) {
-        window.location.href = '<?php echo $options->index; ?>/action/smart-gallery?do=delete-album&id=' + id;
-    }
-}
-
-function closeModal(mid) {
+// ========== 弹窗控制 ==========
+function closeModal(mid)
+{
     document.getElementById(mid).style.display = 'none';
 }
 
 document.querySelectorAll('.sg-modal-overlay').forEach(function(modal) {
     modal.addEventListener('click', function(e) {
-        if (e.target === this) closeModal(this.id);
+        if (e.target === this) {
+            closeModal(this.id);
+        }
     });
 });
 
+// ========== 初始化 ==========
 document.addEventListener('DOMContentLoaded', function() {
     initAlbumDragSort();
 });
 </script>
 
-<?php include 'copyright.php'; include 'common-js.php'; include 'footer.php'; ?>
+<?php
+include 'copyright.php';
+include 'common-js.php';
+include 'footer.php';
